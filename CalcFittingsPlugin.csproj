@@ -107,14 +107,24 @@
     <Resource Include="business.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="cancel.png" />
-  </ItemGroup>
-  <ItemGroup>
     <Resource Include="cancel-button.png" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="editing.png" />
-    <Content Include="writing.png" />
+    <Resource Include="added.png" />
+    <Resource Include="apply.png" />
+    <Resource Include="canceledit.png" />
+    <Resource Include="checking.png" />
+    <Resource Include="editing.png" />
+    <Resource Include="save.png" />
+    <Resource Include="writing.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="minus.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="minus32.png" />
+    <Content Include="minus5.png" />
+    <Content Include="minus67.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

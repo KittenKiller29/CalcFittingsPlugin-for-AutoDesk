@@ -8,10 +8,10 @@
     <UserControl.Resources>
         <BitmapImage x:Key="ExcelIcon" UriSource="pack://application:,,,/excel_icon.png"/>
         <BitmapImage x:Key="PlayIcon" UriSource="pack://application:,,,/business.png"/>
-        <BitmapImage x:Key="SuccessIcon" UriSource="pack://application:,,,/check.png"/>
-        <BitmapImage x:Key="CancelIcon" UriSource="pack://application:,,,/cancel-button.png"/>
+        <BitmapImage x:Key="SuccessIcon" UriSource="pack://application:,,,/checking.png"/>
+        <BitmapImage x:Key="CancelIcon" UriSource="pack://application:,,,/canceledit.png"/>
         <BitmapImage x:Key="EditIcon" UriSource="pack://application:,,,/writing.png"/>
-        
+
         <Style TargetType="ListViewItem">
             <Setter Property="BorderBrush" Value="DarkGray"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
@@ -28,32 +28,32 @@
             <StackPanel Orientation="Horizontal" Height="60">
                 <Button Width="130" Height="40" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{StaticResource ExcelIcon}" Width="30" Height="30" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
+                        <Image Source="{StaticResource ExcelIcon}" Width="25" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Загрузить армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
                 <Button Width="130" Height="40"  Margin="10,0,0,0" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{StaticResource PlayIcon}" Width="30" Height="30" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
+                        <Image Source="{StaticResource PlayIcon}" Width="25" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Рассчитать доп армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
                 <Button Width="130" Height="40" Margin="10,0,0,0" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{StaticResource SuccessIcon}" Width="50" Height="30" RenderTransformOrigin="-1.976,0.767"  Margin="-7,0,0,0"/>
-                        <TextBlock Text="Применить к модели" TextWrapping="Wrap" Margin="-2,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
+                        <Image Source="{StaticResource SuccessIcon}" Width="28" Height="28" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
+                        <TextBlock Text="Применить к модели" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
                 <Button Width="130" Height="40" Margin="10,0,0,0" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{StaticResource CancelIcon}" Width="50" Height="30" RenderTransformOrigin="-1.976,0.767"  Margin="-7,0,0,0"/>
-                        <TextBlock Text="Отменить применение" TextWrapping="Wrap" Margin="-2,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
+                        <Image Source="{StaticResource CancelIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
+                        <TextBlock Text="Отменить применение" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
                 <Button Width="130" Height="40" Margin="180,0,0,0" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="{StaticResource EditIcon}" Width="30" Height="30" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
-                        <TextBlock Text="Данные по арматуре" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>    
+                        <Image Source="{StaticResource EditIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
+                        <TextBlock Text="Данные по арматуре" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
             </StackPanel>
