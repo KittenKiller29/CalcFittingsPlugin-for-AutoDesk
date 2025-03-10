@@ -1,16 +1,18 @@
-﻿<UserControl x:Class="CalcFittingsPlugin.UserControl1"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:CalcFittingsPlugin"
-             mc:Ignorable="d" d:DesignWidth="900" Height="500">
-    <UserControl.Resources>
-        <BitmapImage x:Key="ExcelIcon" UriSource="pack://application:,,,/excel_icon.png"/>
-        <BitmapImage x:Key="PlayIcon" UriSource="pack://application:,,,/business.png"/>
-        <BitmapImage x:Key="SuccessIcon" UriSource="pack://application:,,,/checking.png"/>
-        <BitmapImage x:Key="CancelIcon" UriSource="pack://application:,,,/canceledit.png"/>
-        <BitmapImage x:Key="EditIcon" UriSource="pack://application:,,,/writing.png"/>
+﻿<Window x:Class="CalcFittingsPlugin.UserControl1"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+        xmlns:local="clr-namespace:CalcFittingsPlugin"
+        mc:Ignorable="d" 
+        Height="500" Width="908"
+        ResizeMode="NoResize">
+    <Window.Resources>
+        <BitmapImage x:Key="ExcelIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/excel_icon.png"/>
+        <BitmapImage x:Key="PlayIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/business.png"/>
+        <BitmapImage x:Key="SuccessIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/checking.png"/>
+        <BitmapImage x:Key="CancelIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/canceledit.png"/>
+        <BitmapImage x:Key="EditIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/writing.png"/>
 
         <Style TargetType="ListViewItem">
             <Setter Property="BorderBrush" Value="DarkGray"/>
@@ -22,64 +24,98 @@
                 <ContentPresenter Content="{Binding}" Margin="5"/>
             </Border>
         </DataTemplate>
-    </UserControl.Resources>
-    <StackPanel Background="#FFF4F4F4" Margin="0,0,0,10">
-        <Border BorderBrush="Gray" BorderThickness="0,1,0,1" Height="60" Margin="20,10,20,0">
-            <StackPanel Orientation="Horizontal" Height="60">
-                <Button Width="130" Height="40" Background="White" BorderBrush="Gray">
+    </Window.Resources>
+    <Grid Background="#FFF4F4F4">
+        <!-- Верхняя панель с кнопками -->
+        <Border BorderBrush="Gray" BorderThickness="0,1,0,1" Height="60" Margin="20,10,20,0" VerticalAlignment="Top">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="172"/>
+                    <ColumnDefinition Width="130"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Кнопки -->
+                <Button Grid.Column="0" Height="40" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource ExcelIcon}" Width="25" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Загрузить армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Width="130" Height="40"  Margin="10,0,0,0" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="2" Height="40" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource PlayIcon}" Width="25" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Рассчитать доп армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Width="130" Height="40" Margin="10,0,0,0" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="4" Height="40" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource SuccessIcon}" Width="28" Height="28" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
                         <TextBlock Text="Применить к модели" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Width="130" Height="40" Margin="10,0,0,0" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="6" Height="40" Background="White" BorderBrush="Gray">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource CancelIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
                         <TextBlock Text="Отменить применение" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Width="130" Height="40" Margin="180,0,0,0" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="8" Height="40" Background="White" BorderBrush="Gray" Click="OpenFitDataEditor">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource EditIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Данные по арматуре" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-            </StackPanel>
+            </Grid>
         </Border>
-        <StackPanel Margin="20,10,20,0" Height="400" Orientation="Horizontal">
-            <StackPanel Width="520">
-                <StackPanel Orientation="Horizontal">
-                    <Label Content="Максимально допустимое число получаемых решений" Margin="0,10,10,10" Background="{x:Null}" FontWeight="Bold"/>
-                    <TextBox Width="152" Margin="0, 12"/>
+
+        <!-- Основной контент -->
+        <Grid Margin="20,80,20,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="520"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="332"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Левая панель -->
+            <Border Grid.Column="0"  BorderThickness="0,0,0,1">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Максимально допустимое число получаемых решений" Margin="0,0,10,10" Background="{x:Null}" FontWeight="Bold"/>
+                        <TextBox Width="152" Margin="0,6,0,12" TextChanged="TextBox_TextChanged"/>
+                    </StackPanel>
+                    <ListView Margin="0,1,20,0" Height="323">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                <GridViewColumn Header="Диаметр арматуры, мм." Width="152" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                <GridViewColumn Header="Шаг арматуры, мм." Width="152" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                <GridViewColumn Header="Цена, руб." Width="152" DisplayMemberBinding="{Binding Cost}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
                 </StackPanel>
-                <ListView Margin="0,0,20,0" Height="339">
-                    <ListView.View>
-                        <GridView>
-                            <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                            <GridViewColumn Header="Диаметр арматуры, мм." Width="152" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                            <GridViewColumn Header="Шаг арматуры, мм." Width="152" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                            <GridViewColumn Header="Цена, руб." Width="152" DisplayMemberBinding="{Binding Cost}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                        </GridView>
-                    </ListView.View>
-                </ListView>
-            </StackPanel>
-            <Border BorderBrush="Gray" BorderThickness="0,0,1,0" Height="370" Margin="0,-10,0,-10"/>
-            <StackPanel Width="339">
-                <Label Content="Сообщения плагина" Margin="20,10,10,10" Background="{x:Null}" FontWeight="Bold"/>
-                <TextBox Margin="20,0,0,0" Height="339" TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True"/>
-            </StackPanel>
-        </StackPanel>
-    </StackPanel>
-</UserControl>
+            </Border>
+
+            <!-- Вертикальная линия -->
+            <Border Grid.Column="1" BorderBrush="Gray" BorderThickness="1,0,0,0" Margin="0,5,0,0"/>
+
+            <!-- Правая панель -->
+            <Border Grid.Column="2" BorderThickness="0,0,0,1" Margin="10,0,0,0">
+                <StackPanel Width="322" Height="370">
+                    <Label Content="Сообщения плагина" Margin="0,0,10,10" Background="{x:Null}" FontWeight="Bold"/>
+                    <Border BorderBrush="LightGray" BorderThickness="0" Padding="0">
+                        <TextBox Margin="0,1,0,0" Height="323" Width="320" TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" BorderThickness="1"
+                             VerticalScrollBarVisibility="Visible"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

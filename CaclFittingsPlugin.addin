@@ -1,0 +1,11 @@
+<RevitAddIns>
+<AddIn Type="Command">
+<Name>FirstRevitCommand</Name>
+<Assembly>CalcFittingsPlugin.dll</Assembly>
+<AddInId>030438B6-5743-4CD5-A0A4-061178C021B9</AddInId>
+<FullClassName>CalcFittingsPlugin.Command</FullClassName>
+<Text>Рассчитать доп армирование</Text>
+<VendorId>MyId</VendorId>
+<VendorDescription>Плагин для расчета дополнительного армирования</VendorDescription>
+</AddIn>
+</RevitAddIns>

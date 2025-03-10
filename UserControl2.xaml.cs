@@ -18,11 +18,19 @@ namespace CalcFittingsPlugin
     /// <summary>
     /// Логика взаимодействия для UserControl2.xaml
     /// </summary>
-    public partial class UserControl2 : UserControl
+    public partial class UserControl2 : Window
     {
+        //Флаг для отслеживания – менялись ли данные
+        private static Boolean isDataChanged;
         public UserControl2()
         {
+            isDataChanged = false;
             InitializeComponent();
+        }
+
+        public Boolean getIsDataChanged()
+        {
+            return isDataChanged;
         }
     }
 }

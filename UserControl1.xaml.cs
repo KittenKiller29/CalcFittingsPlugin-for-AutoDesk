@@ -18,7 +18,7 @@ namespace CalcFittingsPlugin
     /// <summary>
     /// Логика взаимодействия для UserControl1.xaml
     /// </summary>
-    public partial class UserControl1 : UserControl
+    public partial class UserControl1 : Window
     {
         public UserControl1()
         {
@@ -26,6 +26,27 @@ namespace CalcFittingsPlugin
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
+        }
+
+        //Кнопка открытия окна редактора данных арматуры
+        private void OpenFitDataEditor(object sender, RoutedEventArgs e)
+        {
+            UserControl2 fitDataWindow = new UserControl2();
+            fitDataWindow.Owner = this;
+            fitDataWindow.ShowDialog();
+
+            //Если хоть единожды вызывалось сохранение данных – считаем, что данные были обновлены
+            if (fitDataWindow.getIsDataChanged())
+            {
+
+            }
+
+
+        }
+
+        private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
 
         }

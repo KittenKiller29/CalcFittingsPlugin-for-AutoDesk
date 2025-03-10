@@ -1,15 +1,16 @@
-﻿<UserControl x:Class="CalcFittingsPlugin.UserControl2"
+﻿<Window x:Class="CalcFittingsPlugin.UserControl2"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:CalcFittingsPlugin"
              mc:Ignorable="d" 
-             d:DesignHeight="300" d:DesignWidth="500">
-    <UserControl.Resources>
-        <BitmapImage x:Key="SaveIcon" UriSource="pack://application:,,,/save.png"/>
-        <BitmapImage x:Key="MinusIcon" UriSource="pack://application:,,,/minus.png"/>
-        <BitmapImage x:Key="AddIcon" UriSource="pack://application:,,,/added.png"/>
+             d:DesignHeight="335" d:DesignWidth="500"
+             ResizeMode="NoResize">
+    <Window.Resources>
+        <BitmapImage x:Key="SaveIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/save.png"/>
+        <BitmapImage x:Key="MinusIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/minus.png"/>
+        <BitmapImage x:Key="AddIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/added.png"/>
         <DataTemplate x:Key="CellTemplateWithBorder">
             <Border BorderBrush="DarkGray" BorderThickness="0,0,1,0">
                 <ContentPresenter Content="{Binding}" Margin="5"/>
@@ -58,8 +59,8 @@
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0"/>
         </Style>
-    </UserControl.Resources>
-    <StackPanel Background="#FFF4F4F4" Orientation="Horizontal">
+    </Window.Resources>
+    <StackPanel Background="#FFF4F4F4" Orientation="Horizontal" Margin="0,0,0,1">
         <StackPanel Orientation="Horizontal" Height="300" Width="330">
             <TabControl Width="330">
                 <TabItem Width="100" Height="20" Header="Диаметр-Шаг">
@@ -130,4 +131,4 @@
             </StackPanel>
         </StackPanel>
     </StackPanel>
-</UserControl>
+</Window>
