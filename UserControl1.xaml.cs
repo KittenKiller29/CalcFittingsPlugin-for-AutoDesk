@@ -35,6 +35,7 @@ namespace CalcFittingsPlugin
         {
             UserControl2 fitDataWindow = new UserControl2();
             fitDataWindow.Owner = this;
+            fitDataWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
             fitDataWindow.ShowDialog();
 
             //Если хоть единожды вызывалось сохранение данных – считаем, что данные были обновлены

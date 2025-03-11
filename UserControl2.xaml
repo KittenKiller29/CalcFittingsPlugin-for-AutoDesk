@@ -7,8 +7,9 @@
         mc:Ignorable="d" 
         d:DesignHeight="335" d:DesignWidth="500"
         ResizeMode="NoResize"
-        Width="500" Height="335"
+        Width="500" Height="325"
         SizeToContent="Manual"
+        
         Title="Редактор данных используемой арматуры">
     <Window.Resources>
         <BitmapImage x:Key="SaveIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/save.png"/>
@@ -65,12 +66,12 @@
             <TabControl Width="330">
                 <TabItem Width="100" Height="20" Header="Диаметр-Шаг">
                     <StackPanel Background="#FFF4F4F4">
-                        <ListView Margin="20,20,20,20" Height="237">
+                        <ListView Margin="12,11,12,10" Height="237">
                             <ListView.View>
                                 <GridView>
                                     <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Диаметр, мм." Width="123" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Шаг, мм." Width="123" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                    <GridViewColumn Header="Диаметр, мм." Width="130" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                    <GridViewColumn Header="Шаг, мм." Width="131" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
                                 </GridView>
                             </ListView.View>
                         </ListView>
@@ -78,12 +79,12 @@
                 </TabItem>
                 <TabItem Width="100" Height="20" Header="Диаметр-Цена">
                     <StackPanel Background="#FFF4F4F4">
-                        <ListView Margin="20,20,20,20" Height="237">
+                        <ListView Margin="12,11,12,20" Height="237" SelectionChanged="ListView_SelectionChanged">
                             <ListView.View>
                                 <GridView>
                                     <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Диаметр, мм." Width="120" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Цена за метр, руб." Width="126" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                    <GridViewColumn Header="Диаметр, мм." Width="130" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                    <GridViewColumn Header="Цена за метр, руб." Width="131" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
                                 </GridView>
                             </ListView.View>
                         </ListView>
@@ -91,10 +92,10 @@
                 </TabItem>
                 <TabItem Width="100" Height="20" Header="Длина">
                     <StackPanel Background="#FFF4F4F4">
-                        <ListView Margin="20,20,20,20" Height="237">
+                        <ListView Margin="12,11,12,20" Height="237">
                             <ListView.View>
                                 <GridView>
-                                    <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                    <GridViewColumn Header="№" Width="55" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
                                     <GridViewColumn Header="Длина, мм." Width="246" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
                                 </GridView>
                             </ListView.View>
@@ -104,27 +105,27 @@
             </TabControl>
         </StackPanel>
 
-        <StackPanel Width="170" Margin="0,22,0,0" Height="278">
+        <StackPanel Width="165" Margin="0,22,0,0" Height="278">
             <Border Height="1" Background="Gray" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
-            <StackPanel Width="170" Height="277" Orientation="Horizontal">
-                <Border BorderBrush="Gray" BorderThickness="0,0,1,0" Height="237" Margin="0,-20,0,-20"/>
-                <StackPanel Width="162" Height="277">
-                    <Button Width="129" Height="30" Margin="0,20,0,20" Background="White">
+            <StackPanel Width="150" Height="277" Orientation="Horizontal" HorizontalAlignment="Left">
+                <Border BorderBrush="Gray" BorderThickness="0,0,1,0" Height="237" Margin="0,-8,0,10"/>
+                <StackPanel Width="153" Height="277">
+                    <Button Width="129" Height="30" Margin="0,11,0,20" Background="White">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="{StaticResource AddIcon}" Width="24" Height="20" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
-                            <TextBlock Text="Добавить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="92"/>
+                            <TextBlock Text="Добавить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="80"/>
                         </StackPanel>
                     </Button>
                     <Button Width="129" Height="30" Margin=" 0,-10,0,0" Background="White">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="{StaticResource MinusIcon}" Width="24" Height="20" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
-                            <TextBlock Text="Удалить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="92"/>
+                            <TextBlock Text="Удалить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="80"/>
                         </StackPanel>
                     </Button>
                     <Button Width="129" Height="30" Margin="0,136,0,20" Background="White">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="{StaticResource SaveIcon}" Width="24" Height="20" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
-                            <TextBlock Text="Сохранить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="92"/>
+                            <TextBlock Text="Сохранить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="80"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>

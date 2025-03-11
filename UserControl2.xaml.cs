@@ -32,5 +32,10 @@ namespace CalcFittingsPlugin
         {
             return isDataChanged;
         }
+
+        private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
+        }
     }
 }
