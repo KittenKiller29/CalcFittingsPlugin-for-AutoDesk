@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:CalcFittingsPlugin"
         mc:Ignorable="d" 
         Height="500" Width="908"
-        ResizeMode="NoResize">
+        ResizeMode="NoResize"
+        Title="Плагин расчета дополнительного армирования">
     <Window.Resources>
         <BitmapImage x:Key="ExcelIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/excel_icon.png"/>
         <BitmapImage x:Key="PlayIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/business.png"/>

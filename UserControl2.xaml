@@ -1,12 +1,15 @@
 ﻿<Window x:Class="CalcFittingsPlugin.UserControl2"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:CalcFittingsPlugin"
-             mc:Ignorable="d" 
-             d:DesignHeight="335" d:DesignWidth="500"
-             ResizeMode="NoResize">
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+        xmlns:local="clr-namespace:CalcFittingsPlugin"
+        mc:Ignorable="d" 
+        d:DesignHeight="335" d:DesignWidth="500"
+        ResizeMode="NoResize"
+        Width="500" Height="335"
+        SizeToContent="Manual"
+        Title="Редактор данных используемой арматуры">
     <Window.Resources>
         <BitmapImage x:Key="SaveIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/save.png"/>
         <BitmapImage x:Key="MinusIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/minus.png"/>
@@ -42,9 +45,6 @@
                                 <Setter Property="Background" Value="White"/>
                                 <Setter Property="Foreground" Value="Gray"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="LightGray"/>
-                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -60,7 +60,7 @@
             <Setter Property="Margin" Value="0"/>
         </Style>
     </Window.Resources>
-    <StackPanel Background="#FFF4F4F4" Orientation="Horizontal" Margin="0,0,0,1">
+    <StackPanel Background="#FFF4F4F4" Orientation="Horizontal" Margin="0,0,0,0" Width="494" Height="306">
         <StackPanel Orientation="Horizontal" Height="300" Width="330">
             <TabControl Width="330">
                 <TabItem Width="100" Height="20" Header="Диаметр-Шаг">
@@ -108,7 +108,7 @@
             <Border Height="1" Background="Gray" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
             <StackPanel Width="170" Height="277" Orientation="Horizontal">
                 <Border BorderBrush="Gray" BorderThickness="0,0,1,0" Height="237" Margin="0,-20,0,-20"/>
-                <StackPanel Width="169">
+                <StackPanel Width="162" Height="277">
                     <Button Width="129" Height="30" Margin="0,20,0,20" Background="White">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="{StaticResource AddIcon}" Width="24" Height="20" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
