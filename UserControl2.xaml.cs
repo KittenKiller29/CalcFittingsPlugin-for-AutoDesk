@@ -37,5 +37,15 @@ namespace CalcFittingsPlugin
         {
 
         }
+
+        private void Button_Save_Click(object sender, RoutedEventArgs e)
+        {
+            isDataChanged = true;
+        }
+
+        private void Button_Delete_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
     }
 }

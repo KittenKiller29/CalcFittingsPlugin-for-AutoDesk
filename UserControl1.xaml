@@ -89,7 +89,7 @@
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Максимально допустимое число получаемых решений" Margin="0,0,10,10" Background="{x:Null}" FontWeight="Bold"/>
-                        <TextBox Width="152" Margin="0,6,0,12" TextChanged="TextBox_TextChanged"/>
+                        <TextBox Name="MaxSolTextBox" PreviewTextInput="MaxSolTextBox_PreviewTextInput" Width="152" Margin="0,6,0,12" TextChanged="TextBox_MaxSol_TextChanged"/>
                     </StackPanel>
                     <ListView Margin="0,1,20,0" Height="323">
                         <ListView.View>
@@ -112,7 +112,7 @@
                 <StackPanel Width="322" Height="370">
                     <Label Content="Сообщения плагина" Margin="0,0,10,10" Background="{x:Null}" FontWeight="Bold"/>
                     <Border BorderBrush="LightGray" BorderThickness="0" Padding="0">
-                        <TextBox Margin="0,1,0,0" Height="323" Width="320" TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" BorderThickness="1"
+                        <TextBox Name="ConsoleLog" Margin="0,1,0,0" Height="323" Width="320" TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" BorderThickness="1"
                              VerticalScrollBarVisibility="Visible"/>
                     </Border>
                 </StackPanel>

@@ -21,11 +21,17 @@ namespace CalcFittingsPlugin
     public partial class UserControl1 : Window
     {
         static private DataBase DataBaseObj;
+        static private int NumOfSol;
 
         public UserControl1()
         {
             InitializeComponent();
             LoadDataBase();
+            NumOfSol = Properties.Settings.Default.MaxSol;
+            if (NumOfSol == 0)
+                MaxSolTextBox.Text = "";
+            else
+                MaxSolTextBox.Text = NumOfSol.ToString();
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -44,21 +50,41 @@ namespace CalcFittingsPlugin
             //Если хоть единожды вызывалось сохранение данных – считаем, что данные были обновлены
             if (fitDataWindow.getIsDataChanged())
             {
-
+                DataBaseObj.UpdateAllData();
+                ConsoleLog.AppendText(Tools.CreateLogMessage(DataBaseObj.GetInfMessage()));
             }
-
-
+            DataBaseObj.LoadAllData();
         }
 
-        private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void TextBox_MaxSol_TextChanged(object sender, TextChangedEventArgs e)
         {
-
+            if (MaxSolTextBox.Text == "")
+            {
+                NumOfSol = 0;
+            }
+            else
+                NumOfSol = int.Parse(MaxSolTextBox.Text);
         }
 
         private void LoadDataBase()
         {
-            
+            DataBaseObj = new DataBase();
+            ConsoleLog.AppendText(Tools.CreateLogMessage(DataBaseObj.GetInfMessage()));
+        }
 
+        protected override void OnClosed(EventArgs e)
+        {
+            Properties.Settings.Default.MaxSol = NumOfSol;
+            Properties.Settings.Default.Save();
+            base.OnClosed(e);
+        }
+
+        private void MaxSolTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            if ((!Tools.IsInt(e.Text)) || ((e.Text == "0") && (MaxSolTextBox.Text.Length == 0)))
+            {
+                e.Handled = true;
+            }
         }
     }
 }
