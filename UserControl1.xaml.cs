@@ -20,9 +20,12 @@ namespace CalcFittingsPlugin
     /// </summary>
     public partial class UserControl1 : Window
     {
+        static private DataBase DataBaseObj;
+
         public UserControl1()
         {
             InitializeComponent();
+            LoadDataBase();
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -49,6 +52,12 @@ namespace CalcFittingsPlugin
 
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+
+        }
+
+        private void LoadDataBase()
+        {
+            
 
         }
     }
