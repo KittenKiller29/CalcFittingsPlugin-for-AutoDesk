@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,12 +22,24 @@ namespace CalcFittingsPlugin
     public partial class UserControl1 : Window
     {
         static private int NumOfSol;
+        static private ArrayList DiamStep;
+        static private ArrayList DiamCost;
+        static private ArrayList Length;
 
         public UserControl1()
         {
             InitializeComponent();
-            
+            DiamStep = new ArrayList();
+            DiamCost = new ArrayList();
+            Length = new ArrayList();
+
+            //Валидиируем JSON и загружаем данные
+            string msg = DataFile.ValidateJSONFile();
+            ConsoleLog.AppendText(Tools.CreateLogMessage(msg));
+            DataFile.LoadAllData(DiamStep, DiamCost, Length);
+
             NumOfSol = Properties.Settings.Default.MaxSol;
+
             if (NumOfSol == 0)
                 MaxSolTextBox.Text = "";
             else
@@ -49,9 +62,9 @@ namespace CalcFittingsPlugin
             //Если хоть единожды вызывалось сохранение данных – считаем, что данные были обновлены
             if (fitDataWindow.getIsDataChanged())
             {
-               
+                DataFile.LoadAllData(DiamStep, DiamCost, Length);
+                ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.SucUpdateJSON));
             }
-            
         }
 
         private void TextBox_MaxSol_TextChanged(object sender, TextChangedEventArgs e)
@@ -64,7 +77,7 @@ namespace CalcFittingsPlugin
                 NumOfSol = int.Parse(MaxSolTextBox.Text);
         }
 
-
+        //Сохраняем настройку максимального числа получаемых решений
         protected override void OnClosed(EventArgs e)
         {
             Properties.Settings.Default.MaxSol = NumOfSol;
@@ -72,6 +85,7 @@ namespace CalcFittingsPlugin
             base.OnClosed(e);
         }
 
+        //Запрещаем ввод нечисловых значений и нуля как первого символа
         private void MaxSolTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
             if ((!Tools.IsInt(e.Text)) || ((e.Text == "0") && (MaxSolTextBox.Text.Length == 0)))

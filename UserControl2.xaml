@@ -9,17 +9,11 @@
         ResizeMode="NoResize"
         Width="500" Height="325"
         SizeToContent="Manual"
-        
         Title="Редактор данных используемой арматуры">
     <Window.Resources>
         <BitmapImage x:Key="SaveIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/save.png"/>
         <BitmapImage x:Key="MinusIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/minus.png"/>
         <BitmapImage x:Key="AddIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/added.png"/>
-        <DataTemplate x:Key="CellTemplateWithBorder">
-            <Border BorderBrush="DarkGray" BorderThickness="0,0,1,0">
-                <ContentPresenter Content="{Binding}" Margin="5"/>
-            </Border>
-        </DataTemplate>
         <Style TargetType="TabItem">
             <Setter Property="Template">
                 <Setter.Value>
@@ -63,43 +57,43 @@
     </Window.Resources>
     <StackPanel Background="#FFF4F4F4" Orientation="Horizontal" Margin="0,0,0,0" Width="494" Height="306">
         <StackPanel Orientation="Horizontal" Height="300" Width="330">
-            <TabControl Width="330">
+            <TabControl Width="330" Name="GridTab">
                 <TabItem Width="100" Height="20" Header="Диаметр-Шаг">
                     <StackPanel Background="#FFF4F4F4">
-                        <ListView Margin="12,11,12,10" Height="237">
-                            <ListView.View>
-                                <GridView>
-                                    <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Диаметр, мм." Width="130" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Шаг, мм." Width="131" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
+                        <DataGrid Margin="12,11,12,10" Height="237" Name="DiamStepView" AutoGenerateColumns="False"
+                                  HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Диаметр, мм." Width="132" Binding="{Binding Diam}"/>
+                                <DataGridTextColumn Header="Шаг, мм." Width="132" Binding="{Binding Step}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </StackPanel>
                 </TabItem>
                 <TabItem Width="100" Height="20" Header="Диаметр-Цена">
                     <StackPanel Background="#FFF4F4F4">
-                        <ListView Margin="12,11,12,20" Height="237" SelectionChanged="ListView_SelectionChanged">
-                            <ListView.View>
-                                <GridView>
-                                    <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Диаметр, мм." Width="130" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Цена за метр, руб." Width="131" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
+                        <DataGrid Margin="12,11,12,20" Height="237" Name="DiamCostView" AutoGenerateColumns="False"
+                                  HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Диаметр, мм." Width="132" Binding="{Binding Diam}"/>
+                                <DataGridTextColumn Header="Цена за метр, руб." Width="132" Binding="{Binding Step}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </StackPanel>
                 </TabItem>
                 <TabItem Width="100" Height="20" Header="Длина">
                     <StackPanel Background="#FFF4F4F4">
-                        <ListView Margin="12,11,12,20" Height="237">
-                            <ListView.View>
-                                <GridView>
-                                    <GridViewColumn Header="№" Width="55" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                    <GridViewColumn Header="Длина, мм." Width="246" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
+                        <DataGrid Margin="12,11,12,20" Height="237" Name="LengthView" AutoGenerateColumns="False"
+                                  HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="Длина, мм." Width="264" Binding="{Binding Length}"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
                     </StackPanel>
                 </TabItem>
             </TabControl>
@@ -110,7 +104,7 @@
             <StackPanel Width="150" Height="277" Orientation="Horizontal" HorizontalAlignment="Left">
                 <Border BorderBrush="Gray" BorderThickness="0,0,1,0" Height="237" Margin="0,-8,0,10"/>
                 <StackPanel Width="153" Height="277">
-                    <Button Width="129" Height="30" Margin="0,11,0,20" Background="White">
+                    <Button Width="129" Height="30" Margin="0,11,0,20" Background="White" Click="Button_Add_Click">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="{StaticResource AddIcon}" Width="24" Height="20" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                             <TextBlock Text="Добавить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="80"/>
