@@ -63,7 +63,7 @@
                         <DataGrid Margin="12,11,12,10" Height="237" Name="DiamStepView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
                                   CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
-                                  PreviewTextInput="DiamStep_PreviewInput" SelectionChanged="DiamStepView_SelectionChanged">
+                                  PreviewTextInput="DiamStep_PreviewInput">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Диаметр, мм." Width="132" Binding="{Binding Diam}"/>
