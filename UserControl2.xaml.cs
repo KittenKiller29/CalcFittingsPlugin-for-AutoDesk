@@ -76,7 +76,21 @@ namespace CalcFittingsPlugin
 
         private void Button_Delete_Click(object sender, RoutedEventArgs e)
         {
-
+            switch (GridTab.SelectedIndex)
+            {
+                case 0: //Активная вкладка Диаметр – Шаг
+                    DeleteRowFromDataTable(DiamStep, DiamStepView.SelectedIndex);
+                    RecalcNum(DiamStep);
+                    break;
+                case 1: //Активная вкладка Диаметр – Цена
+                    DeleteRowFromDataTable(DiamCost, DiamCostView.SelectedIndex);
+                    RecalcNum(DiamCost);
+                    break;
+                case 2: //Активная вкладка Длина
+                    DeleteRowFromDataTable(Length, LengthView.SelectedIndex);
+                    RecalcNum(Length);
+                    break;
+            }
         }
 
         private void Button_Add_Click(object sender, RoutedEventArgs e)
@@ -85,15 +99,37 @@ namespace CalcFittingsPlugin
             {
                 case 0: //Активная вкладка Диаметр – Шаг
                     DiamStep.Rows.Add();
+                    RecalcNum(DiamStep);
                     break;
                 case 1: //Активная вкладка Диаметр – Цена
                     DiamCost.Rows.Add();
+                    RecalcNum(DiamCost);
                     break;
                 case 2: //Активная вкладка Длина
                     Length.Rows.Add();
+                    RecalcNum(Length);
                     break;
+            }
+        }
 
-            }  
+        //Вспомогательный метод для пересчета номеров строк таблиц в ui
+        private void RecalcNum(DataTable dataTable)
+        {
+            int num = 1;
+            foreach (DataRow row in dataTable.Rows)
+            {
+                row["Num"] = num;
+                num ++;
+            }
+        }
+
+        //Вспомогательный метод для удаления строки из таблицы
+        private void DeleteRowFromDataTable(DataTable dataTable, int rowNum)
+        {
+            if (rowNum != -1)
+            {
+                dataTable.Rows.RemoveAt(rowNum);
+            }
         }
     }
 }
