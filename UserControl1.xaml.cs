@@ -20,13 +20,12 @@ namespace CalcFittingsPlugin
     /// </summary>
     public partial class UserControl1 : Window
     {
-        static private DataBase DataBaseObj;
         static private int NumOfSol;
 
         public UserControl1()
         {
             InitializeComponent();
-            LoadDataBase();
+            
             NumOfSol = Properties.Settings.Default.MaxSol;
             if (NumOfSol == 0)
                 MaxSolTextBox.Text = "";
@@ -50,10 +49,9 @@ namespace CalcFittingsPlugin
             //Если хоть единожды вызывалось сохранение данных – считаем, что данные были обновлены
             if (fitDataWindow.getIsDataChanged())
             {
-                DataBaseObj.UpdateAllData();
-                ConsoleLog.AppendText(Tools.CreateLogMessage(DataBaseObj.GetInfMessage()));
+               
             }
-            DataBaseObj.LoadAllData();
+            
         }
 
         private void TextBox_MaxSol_TextChanged(object sender, TextChangedEventArgs e)
@@ -66,11 +64,6 @@ namespace CalcFittingsPlugin
                 NumOfSol = int.Parse(MaxSolTextBox.Text);
         }
 
-        private void LoadDataBase()
-        {
-            DataBaseObj = new DataBase();
-            ConsoleLog.AppendText(Tools.CreateLogMessage(DataBaseObj.GetInfMessage()));
-        }
 
         protected override void OnClosed(EventArgs e)
         {
