@@ -131,5 +131,44 @@ namespace CalcFittingsPlugin
                 dataTable.Rows.RemoveAt(rowNum);
             }
         }
+        
+        //Запрещаем ввод не чисел и нуля как первого элемента для таблицы Диаметр – Шаг
+        private void DiamStep_PreviewInput(object sender, TextCompositionEventArgs e)                            
+        {
+            var textBox = e.OriginalSource as TextBox;
+            string currentText = textBox?.Text;
+
+            // Проверяем, является ли вводимый текст числом
+            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)))
+            {
+                e.Handled = true; // Запрещаем ввод
+            }
+        }
+
+        //Запрещаем ввод не чисел и нуля как первого элемента для таблицы Диаметр – Цена
+        private void DiamCost_PreviewInput(object sender, TextCompositionEventArgs e)
+        {
+            var textBox = e.OriginalSource as TextBox;
+            string currentText = textBox?.Text;
+
+            // Проверяем, является ли вводимый текст числом
+            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)))
+            {
+                e.Handled = true; // Запрещаем ввод
+            }
+        }
+
+        //Запрещаем ввод не чисел и нуля как первого элемента для таблицы Длина
+        private void length_PreviewInput(object sender, TextCompositionEventArgs e)
+        {
+            var textBox = e.OriginalSource as TextBox;
+            string currentText = textBox?.Text;
+
+            // Проверяем, является ли вводимый текст числом
+            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)))
+            {
+                e.Handled = true; // Запрещаем ввод
+            }
+        }
     }
 }

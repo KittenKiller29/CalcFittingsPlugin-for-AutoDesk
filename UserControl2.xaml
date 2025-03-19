@@ -62,7 +62,8 @@
                     <StackPanel Background="#FFF4F4F4">
                         <DataGrid Margin="12,11,12,10" Height="237" Name="DiamStepView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
-                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
+                                  PreviewTextInput="DiamStep_PreviewInput" SelectionChanged="DiamStepView_SelectionChanged">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Диаметр, мм." Width="132" Binding="{Binding Diam}"/>
@@ -75,7 +76,8 @@
                     <StackPanel Background="#FFF4F4F4">
                         <DataGrid Margin="12,11,12,20" Height="237" Name="DiamCostView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
-                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
+                                  PreviewTextInput="DiamCost_PreviewInput">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Диаметр, мм." Width="132" Binding="{Binding Diam}"/>
@@ -88,7 +90,8 @@
                     <StackPanel Background="#FFF4F4F4">
                         <DataGrid Margin="12,11,12,20" Height="237" Name="LengthView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
-                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
+                                  PreviewTextInput="length_PreviewInput">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Длина, мм." Width="264" Binding="{Binding Length}"/>
