@@ -36,9 +36,34 @@ namespace CalcFittingsPlugin
         }
 
         //Обновляет в JSON данные по арматуре плагина
-        public static void UpdateAllData()
+        public static void UpdateAllData(DataTable DiamStep, DataTable DiamCost, DataTable Length)
         {
-            
+            //Создание директории для файла для исключения возможных ошибок с отсутствием файла
+            string directory = Path.GetDirectoryName(GetDataFilePath());
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            //Создаем копии таблиц без столбцов Num и сериализируем их в JSON
+            DataTable DiamStepSerialize = DiamStep.Copy();
+            DataTable DiamCostSerialize = DiamCost.Copy();
+            DataTable LengthSerialize = Length.Copy();
+
+            DiamStepSerialize.Columns.Remove("Num");
+            DiamCostSerialize.Columns.Remove("Num");
+            LengthSerialize.Columns.Remove("Num");
+
+            var data = new
+            {
+                DiamStep = DiamStepSerialize,
+                DiamCost = DiamCostSerialize,
+                Length = LengthSerialize
+            };
+
+            string json = JsonConvert.SerializeObject(data, Formatting.Indented);
+            File.WriteAllText(GetDataFilePath(), json);
+
         }
 
         //Возвращает путь до файла данных JSON

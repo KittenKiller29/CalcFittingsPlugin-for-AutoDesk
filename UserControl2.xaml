@@ -57,13 +57,12 @@
     </Window.Resources>
     <StackPanel Background="#FFF4F4F4" Orientation="Horizontal" Margin="0,0,0,0" Width="494" Height="306">
         <StackPanel Orientation="Horizontal" Height="300" Width="330">
-            <TabControl Width="330" Name="GridTab">
+            <TabControl Width="330" Name="GridTab" SelectionChanged="ListView_SelectionChanged">
                 <TabItem Width="100" Height="20" Header="Диаметр-Шаг">
                     <StackPanel Background="#FFF4F4F4">
                         <DataGrid Margin="12,11,12,10" Height="237" Name="DiamStepView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
-                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
-                                  PreviewTextInput="DiamStep_PreviewInput">
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Диаметр, мм." Width="132" Binding="{Binding Diam}"/>
@@ -76,12 +75,11 @@
                     <StackPanel Background="#FFF4F4F4">
                         <DataGrid Margin="12,11,12,20" Height="237" Name="DiamCostView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
-                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
-                                  PreviewTextInput="DiamCost_PreviewInput">
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Диаметр, мм." Width="132" Binding="{Binding Diam}"/>
-                                <DataGridTextColumn Header="Цена за метр, руб." Width="132" Binding="{Binding Step}"/>
+                                <DataGridTextColumn Header="Цена за метр, руб." Width="132" Binding="{Binding Cost}"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </StackPanel>
@@ -90,8 +88,7 @@
                     <StackPanel Background="#FFF4F4F4">
                         <DataGrid Margin="12,11,12,20" Height="237" Name="LengthView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
-                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
-                                  PreviewTextInput="length_PreviewInput">
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="Длина, мм." Width="264" Binding="{Binding Length}"/>
@@ -119,7 +116,7 @@
                             <TextBlock Text="Удалить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="80"/>
                         </StackPanel>
                     </Button>
-                    <Button Width="129" Height="30" Margin="0,136,0,20" Background="White" Click="Button_Save_Click">
+                    <Button Width="129" Height="30" Margin="0,136,0,20" Background="White" Click="Button_Save_Click" Name="SaveButton" IsEnabled="False">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="{StaticResource SaveIcon}" Width="24" Height="20" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                             <TextBlock Text="Сохранить" TextWrapping="Wrap" Margin="15,0,0,0" VerticalAlignment="Center" Height="18" Width="80"/>

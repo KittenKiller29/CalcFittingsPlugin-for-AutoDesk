@@ -16,6 +16,8 @@ namespace CalcFittingsPlugin
         public const string ErrJSON = "Не удалось получить доступ к данным в FitData.json";
         public const string SucUpdateJSON = "Данные обновлены";
         public const string PluginName = "CalcFittingsPlugin";
+        public const string ChangesSaved = "Изменения успешно сохранены!";
+        public const string ChangesNotSaved = "Не удалось сохранить изменения!";
 
         // Преобразует текст в Лог-сообщение [время]: Текст
         public static string CreateLogMessage(string text)
@@ -26,8 +28,8 @@ namespace CalcFittingsPlugin
         //Функция для проверки регуляркой, является ли введенный символ числом
         public static bool IsInt(string text)
         {
-            Regex regex = new Regex("[^0-9]+");
-            return !regex.IsMatch(text);
+            Regex regex = new Regex(@"^\d+$");
+            return regex.IsMatch(text);
         }
           
     }

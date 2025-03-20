@@ -24,6 +24,7 @@ namespace CalcFittingsPlugin
         private static DataTable DiamStep;
         private static DataTable DiamCost;
         private static DataTable Length;
+        private object oldCellValue;
         //Флаг для отслеживания – менялись ли данные
         private static Boolean isDataChanged;
         public UserControl2()
@@ -33,6 +34,21 @@ namespace CalcFittingsPlugin
             Length = new DataTable();
             isDataChanged = false;
             InitializeComponent();
+
+            //Следующий блок – подписываемся на различные однотипные события для DataGrid
+            DiamStepView.BeginningEdit += DataGrid_BeginningEdit;
+            DiamStepView.CellEditEnding += DataGrid_CellEditEnding;
+
+            DiamCostView.BeginningEdit += DataGrid_BeginningEdit;
+            DiamCostView.CellEditEnding += DataGrid_CellEditEnding;
+
+            LengthView.BeginningEdit += DataGrid_BeginningEdit;
+            LengthView.CellEditEnding += DataGrid_CellEditEnding;
+
+            DiamStepView.LoadingRow += DataGrid_LoadingRow;
+            DiamCostView.LoadingRow += DataGrid_LoadingRow;
+            LengthView.LoadingRow += DataGrid_LoadingRow;
+
             CreateDataProviders();
             DataFile.LoadAllData(DiamStep, DiamCost, Length);
         }
@@ -63,15 +79,76 @@ namespace CalcFittingsPlugin
             return isDataChanged;
         }
 
+        //функция – валидатор перед сохранением таблиц в файл
+        private string ValidateSave()
+        {
+            string message = "";
+
+            return message;
+        }
+
         private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // При смене вкладки завершаем редактирование во всех DataGrid
+            CommitAllDataGrids();
+        }
 
+        //Данный метод завершает редактирование во всех гридах, если завершить его не удалось – отменяет изменения
+        private void CommitAllDataGrids()
+        {
+            if (!CommitDataGridEditing(DiamStepView))
+            {
+                DiamStepView.CancelEdit();
+            }
+
+            if (!CommitDataGridEditing(DiamCostView))
+            {
+                DiamCostView.CancelEdit();
+            }
+
+            if (!CommitDataGridEditing(LengthView))
+            {
+                LengthView.CancelEdit();
+            }
+        }
+
+        //Данный метод отслеживает, удалось ли сохранить изменения в гриде
+        private bool CommitDataGridEditing(DataGrid dataGrid)
+        {
+            try
+            {
+                bool commitSuccess = dataGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                commitSuccess &= dataGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
+                return commitSuccess;
+            }
+            catch 
+            {
+                return false;
+            }
         }
 
         private void Button_Save_Click(object sender, RoutedEventArgs e)
         {
-            isDataChanged = true;
-            DataFile.UpdateAllData();
+            string validateMsg = ValidateSave();
+            if (validateMsg == "")
+            {
+                try
+                {
+                    isDataChanged = true;
+                    DataFile.UpdateAllData(DiamStep, DiamCost, Length);
+                    SaveButton.IsEnabled = false;
+                    MessageBox.Show(Tools.ChangesSaved, "Сохранение", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch
+                {
+                    MessageBox.Show(Tools.ChangesNotSaved, "Сохранение", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show(validateMsg, "Сохранение", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void Button_Delete_Click(object sender, RoutedEventArgs e)
@@ -91,6 +168,8 @@ namespace CalcFittingsPlugin
                     RecalcNum(Length);
                     break;
             }
+
+            SaveButton.IsEnabled = true;
         }
 
         private void Button_Add_Click(object sender, RoutedEventArgs e)
@@ -110,6 +189,8 @@ namespace CalcFittingsPlugin
                     RecalcNum(Length);
                     break;
             }
+
+            SaveButton.IsEnabled = true;
         }
 
         //Вспомогательный метод для пересчета номеров строк таблиц в ui
@@ -131,44 +212,44 @@ namespace CalcFittingsPlugin
                 dataTable.Rows.RemoveAt(rowNum);
             }
         }
-        
-        //Запрещаем ввод не чисел и нуля как первого элемента для таблицы Диаметр – Шаг
-        private void DiamStep_PreviewInput(object sender, TextCompositionEventArgs e)                            
-        {
-            var textBox = e.OriginalSource as TextBox;
-            string currentText = textBox?.Text;
-
-            // Проверяем, является ли вводимый текст числом
-            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)))
-            {
-                e.Handled = true; // Запрещаем ввод
-            }
-        }
-
-        //Запрещаем ввод не чисел и нуля как первого элемента для таблицы Диаметр – Цена
-        private void DiamCost_PreviewInput(object sender, TextCompositionEventArgs e)
-        {
-            var textBox = e.OriginalSource as TextBox;
-            string currentText = textBox?.Text;
-
-            // Проверяем, является ли вводимый текст числом
-            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)))
-            {
-                e.Handled = true; // Запрещаем ввод
-            }
-        }
 
         //Запрещаем ввод не чисел и нуля как первого элемента для таблицы Длина
-        private void length_PreviewInput(object sender, TextCompositionEventArgs e)
+        private void DataGrid_PreviewInput(object sender, TextCompositionEventArgs e)
         {
             var textBox = e.OriginalSource as TextBox;
             string currentText = textBox?.Text;
 
             // Проверяем, является ли вводимый текст числом
-            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)))
+            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)) || (e.Text.Contains(" ")))
             {
                 e.Handled = true; // Запрещаем ввод
             }
+        }
+
+        //Отслеживаем изменение значения в ячейке чтобы активировать сохранение
+        private void DataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            var editedText = (e.EditingElement as TextBox)?.Text;
+            if (oldCellValue?.ToString() != editedText)
+            {
+                SaveButton.IsEnabled = true; 
+            }
+        }
+
+        //Запоминаем начальное значение чтобы корректно активировать сохранение
+        private void DataGrid_BeginningEdit(object sender, DataGridBeginningEditEventArgs e)
+        {
+            var dataGrid = sender as DataGrid;
+            if (dataGrid != null && e.Row.Item is DataRowView row)
+            {
+                oldCellValue = row[e.Column.DisplayIndex]; 
+            }
+        }
+
+        //Подписываемся на событие PreviewInput для всех TextBox в ячейках
+        private void DataGrid_LoadingRow(object sender, DataGridRowEventArgs e)
+        {
+            e.Row.PreviewTextInput += DataGrid_PreviewInput;
         }
     }
 }
