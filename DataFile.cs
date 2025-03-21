@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 //В этом файле описан класс для взаимодействия с JSON файлом данных по арматуре
 namespace CalcFittingsPlugin
@@ -32,11 +33,42 @@ namespace CalcFittingsPlugin
             DiamCost.Clear();
             Length.Clear();
 
+            // Читаем JSON из файла
+            string jsonData = File.ReadAllText(GetDataFilePath());
 
+            // Парсим JSON в объект JObject
+            JObject jsonObject = JObject.Parse(jsonData);
 
+            // Загружаем данные в таблицу DiamStep
+            LoadTableFromJson(jsonObject, "DiamStep", DiamStep, new string[] { "Diam", "Step" });
 
-            
+            // Загружаем данные в таблицу DiamCost
+            LoadTableFromJson(jsonObject, "DiamCost", DiamCost, new string[] { "Diam", "Cost" });
 
+            // Загружаем данные в таблицу Length
+            LoadTableFromJson(jsonObject, "Length", Length, new string[] { "Length" });
+        }
+
+        private static void LoadTableFromJson(JObject jsonObject, string tableName, DataTable table, string[] columns)
+        {
+            // Получаем массив данных для таблицы из JSON
+            JArray jsonArray = (JArray)jsonObject[tableName];
+
+            // Перебираем элементы массива
+            foreach (JObject item in jsonArray)
+            {
+                // Создаем новую строку для таблицы
+                DataRow row = table.NewRow();
+
+                // Заполняем строку данными из JSON
+                foreach (string column in columns)
+                {
+                    row[column] = item[column].ToObject<object>();
+                }
+
+                // Добавляем строку в таблицу
+                table.Rows.Add(row);
+            }
         }
 
         //Обновляет в JSON данные по арматуре плагина

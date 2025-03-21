@@ -51,6 +51,9 @@ namespace CalcFittingsPlugin
 
             CreateDataProviders();
             DataFile.LoadAllData(DiamStep, DiamCost, Length);
+            RecalcNum(DiamStep);
+            RecalcNum(DiamCost);
+            RecalcNum(Length);
         }
 
         //Метод для создания таблиц и установления их в качестве провайдера данных 
