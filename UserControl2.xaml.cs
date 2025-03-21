@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -89,11 +90,13 @@ namespace CalcFittingsPlugin
             Func<int, string> RepData = x => "    Строка " + x.ToString() + " – строка с такими данными уже существует.\n";
             Func<int, string> RepCost = x => "    Строка " + x.ToString() + " – цена для данного диаметра уже была задана раннее.\n";
             Func<int, string> LengthOutOfBounds = x => "    Строка " + x.ToString() + " – длина больше 11700 мм. или меньше 1000 мм.\n";
+            Func<int, string> DiamNotCost = x => "    Для диаметра " + x.ToString() + " – не найдена строка в Диаметр – Цена.\n";
 
             string message = "";
             string diamCostMessage = "";
             string diamStepMessage = "";
             string LengthMessage = "";
+            string invalideMessage = "";
 
             // Валидация таблицы Диаметр – Шаг
             for (int i = 0; i < DiamStep.Rows.Count; i++)
@@ -173,12 +176,59 @@ namespace CalcFittingsPlugin
                 }
             }
 
+            //Проверяем данные на валидность
+            Dictionary<int, bool> checkedDiameters = new Dictionary<int, bool>();
+
+            for (int i = 0; i < DiamStep.Rows.Count; i++)
+            {
+                if (string.IsNullOrEmpty(DiamStep.Rows[i].ItemArray[1]?.ToString())
+                    ||
+                    !int.TryParse(DiamStep.Rows[i].ItemArray[1].ToString(), out int diamValue))
+                {
+                    continue; 
+                }
+
+                if (checkedDiameters.ContainsKey(diamValue))
+                {
+                    continue;
+                }
+
+                bool isDiamFoundInCost = false; // Флаг, указывающий, найден ли диаметр в таблице DiamCost
+
+                // Ищем диаметр в таблице DiamCost
+                for (int j = 0; j < DiamCost.Rows.Count; j++)
+                {
+                    if (string.IsNullOrEmpty(DiamCost.Rows[j].ItemArray[1]?.ToString())
+                        ||
+                        !int.TryParse(DiamCost.Rows[j].ItemArray[1].ToString(), out int diamInCostValue))
+                    {
+                        continue; 
+                    }
+
+                    if (diamInCostValue == diamValue)
+                    {
+                        isDiamFoundInCost = true; 
+                        break; 
+                    }
+                }
+
+                // Добавляем диаметр в словарь, чтобы отметить, что он был проверен
+                checkedDiameters[diamValue] = isDiamFoundInCost;
+
+                if (!isDiamFoundInCost)
+                {
+                    invalideMessage += DiamNotCost(diamValue);
+                }
+            }
+
             // Формируем итоговое сообщение
             diamStepMessage = (diamStepMessage.Length > 0) ? Tools.ForDiamStep + diamStepMessage : "";
             diamCostMessage = (diamCostMessage.Length > 0) ? Tools.ForDiamCost + diamCostMessage : "";
             LengthMessage = (LengthMessage.Length > 0) ? Tools.ForLength + LengthMessage : "";
+            invalideMessage = (invalideMessage.Length > 0) ? Tools.InvalideData + invalideMessage : "";
 
-            message = diamStepMessage + diamCostMessage + LengthMessage;
+
+            message = diamStepMessage + diamCostMessage + LengthMessage + invalideMessage;
             message = (message.Length > 0) ? Tools.ChangesNotSaved + message : "";
 
             return message;

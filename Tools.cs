@@ -21,6 +21,7 @@ namespace CalcFittingsPlugin
         public const string ForDiamStep = "Для таблицы Диаметр – Шаг:\n";
         public const string ForDiamCost = "Для таблицы Диаметр – Цена:\n";
         public const string ForLength = "Для таблицы Длина:\n";
+        public const string InvalideData = "Невалидные данные:\n";
 
         // Преобразует текст в Лог-сообщение [время]: Текст
         public static string CreateLogMessage(string text)
