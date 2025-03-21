@@ -82,7 +82,101 @@ namespace CalcFittingsPlugin
         //функция – валидатор перед сохранением таблиц в файл
         private string ValidateSave()
         {
+            Func<int, string> EmptyData = x => "    Строка " + x.ToString() + " – не все данные заданы.\n";
+            Func<int, string> RepData = x => "    Строка " + x.ToString() + " – строка с такими данными уже существует.\n";
+            Func<int, string> RepCost = x => "    Строка " + x.ToString() + " – цена для данного диаметра уже была задана раннее.\n";
+            Func<int, string> LengthOutOfBounds = x => "    Строка " + x.ToString() + " – длина больше 11700 мм. или меньше 1000 мм.\n";
+
             string message = "";
+            string diamCostMessage = "";
+            string diamStepMessage = "";
+            string LengthMessage = "";
+
+            // Валидация таблицы Диаметр – Шаг
+            for (int i = 0; i < DiamStep.Rows.Count; i++)
+            {
+                // Проверяем строку на пустоту (null или пустая строка)
+                if (string.IsNullOrEmpty(DiamStep.Rows[i].ItemArray[1]?.ToString()) ||
+                    string.IsNullOrEmpty(DiamStep.Rows[i].ItemArray[2]?.ToString()))
+                {
+                    diamStepMessage += EmptyData(i + 1);
+                    continue;
+                }
+
+                // Проверка на дубликаты
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    if (DiamStep.Rows[i].ItemArray[1].ToString() == DiamStep.Rows[j].ItemArray[1].ToString() &&
+                        DiamStep.Rows[i].ItemArray[2].ToString() == DiamStep.Rows[j].ItemArray[2].ToString())
+                    {
+                        diamStepMessage += RepData(i + 1);
+                        break;
+                    }
+                }
+            }
+
+            // Валидация таблицы Диаметр – Цена
+            for (int i = 0; i < DiamCost.Rows.Count; i++)
+            {
+                // Проверяем строку на пустоту (null или пустая строка)
+                if (string.IsNullOrEmpty(DiamCost.Rows[i].ItemArray[1]?.ToString()) ||
+                    string.IsNullOrEmpty(DiamCost.Rows[i].ItemArray[2]?.ToString()))
+                {
+                    diamCostMessage += EmptyData(i + 1);
+                    continue;
+                }
+
+                // Проверка на дубликаты
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    if (DiamCost.Rows[i].ItemArray[1].ToString() == DiamCost.Rows[j].ItemArray[1].ToString())
+                    {
+                        diamCostMessage += RepCost(i + 1);
+                        break;
+                    }
+                }
+            }
+
+            // Валидация таблицы Длина
+            for (int i = 0; i < Length.Rows.Count; i++)
+            {
+                // Проверяем строку на пустоту (null или пустая строка)
+                if (string.IsNullOrEmpty(Length.Rows[i].ItemArray[1]?.ToString()))
+                {
+                    LengthMessage += EmptyData(i + 1);
+                    continue;
+                }
+
+                if (!int.TryParse(Length.Rows[i].ItemArray[1].ToString(), out int lengthValue))
+                {
+                    LengthMessage += EmptyData(i + 1);
+                    continue;
+                }
+
+                // Проверяем нахождение значения в границах
+                if (lengthValue > 11700 || lengthValue < 1000)
+                {
+                    LengthMessage += LengthOutOfBounds(i + 1);
+                }
+
+                // Проверка на дубликаты
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    if (Length.Rows[i].ItemArray[1].ToString() == Length.Rows[j].ItemArray[1].ToString())
+                    {
+                        LengthMessage += RepCost(i + 1);
+                        break;
+                    }
+                }
+            }
+
+            // Формируем итоговое сообщение
+            diamStepMessage = (diamStepMessage.Length > 0) ? Tools.ForDiamStep + diamStepMessage : "";
+            diamCostMessage = (diamCostMessage.Length > 0) ? Tools.ForDiamCost + diamCostMessage : "";
+            LengthMessage = (LengthMessage.Length > 0) ? Tools.ForLength + LengthMessage : "";
+
+            message = diamStepMessage + diamCostMessage + LengthMessage;
+            message = (message.Length > 0) ? Tools.ChangesNotSaved + message : "";
 
             return message;
         }

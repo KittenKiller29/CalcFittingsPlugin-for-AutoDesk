@@ -17,7 +17,10 @@ namespace CalcFittingsPlugin
         public const string SucUpdateJSON = "Данные обновлены";
         public const string PluginName = "CalcFittingsPlugin";
         public const string ChangesSaved = "Изменения успешно сохранены!";
-        public const string ChangesNotSaved = "Не удалось сохранить изменения!";
+        public const string ChangesNotSaved = "Не удалось сохранить изменения!\n";
+        public const string ForDiamStep = "Для таблицы Диаметр – Шаг:\n";
+        public const string ForDiamCost = "Для таблицы Диаметр – Цена:\n";
+        public const string ForLength = "Для таблицы Длина:\n";
 
         // Преобразует текст в Лог-сообщение [время]: Текст
         public static string CreateLogMessage(string text)

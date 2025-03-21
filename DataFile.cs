@@ -31,6 +31,10 @@ namespace CalcFittingsPlugin
             DiamStep.Clear();
             DiamCost.Clear();
             Length.Clear();
+
+
+
+
             
 
         }
