@@ -93,5 +93,6 @@ namespace CalcFittingsPlugin
                 e.Handled = true;
             }
         }
+
     }
 }

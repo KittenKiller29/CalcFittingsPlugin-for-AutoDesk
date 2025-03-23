@@ -17,17 +17,22 @@ using System.Windows.Shapes;
 
 namespace CalcFittingsPlugin
 {
-    /// <summary>
-    /// Логика взаимодействия для UserControl2.xaml
-    /// </summary>
     public partial class UserControl2 : Window
     {
         private static DataTable DiamStep;
         private static DataTable DiamCost;
         private static DataTable Length;
+
         private object oldCellValue;
+
+        //Выделенные строки в гридах
+        private DataRowView _selectedDiamStepRow;
+        private DataRowView _selectedDiamCostRow;
+        private DataRowView _selectedLengthRow;
+
         //Флаг для отслеживания – менялись ли данные
         private static Boolean isDataChanged;
+
         public UserControl2()
         {
             DiamStep = new DataTable();
@@ -39,12 +44,15 @@ namespace CalcFittingsPlugin
             //Следующий блок – подписываемся на различные однотипные события для DataGrid
             DiamStepView.BeginningEdit += DataGrid_BeginningEdit;
             DiamStepView.CellEditEnding += DataGrid_CellEditEnding;
+            DiamStepView.SelectionChanged += DataGrid_SelectionChanged;
 
             DiamCostView.BeginningEdit += DataGrid_BeginningEdit;
             DiamCostView.CellEditEnding += DataGrid_CellEditEnding;
+            DiamCostView.SelectionChanged += DataGrid_SelectionChanged;
 
             LengthView.BeginningEdit += DataGrid_BeginningEdit;
             LengthView.CellEditEnding += DataGrid_CellEditEnding;
+            LengthView.SelectionChanged += DataGrid_SelectionChanged;
 
             DiamStepView.LoadingRow += DataGrid_LoadingRow;
             DiamCostView.LoadingRow += DataGrid_LoadingRow;
@@ -52,6 +60,7 @@ namespace CalcFittingsPlugin
 
             CreateDataProviders();
             DataFile.LoadAllData(DiamStep, DiamCost, Length);
+            CreateFirstRow();
             RecalcNum(DiamStep);
             RecalcNum(DiamCost);
             RecalcNum(Length);
@@ -76,6 +85,20 @@ namespace CalcFittingsPlugin
             Length.Columns.Add("Num", typeof(int));
             Length.Columns.Add("Length", typeof(int));
             LengthView.ItemsSource = Length.DefaultView;
+        }
+
+        private void CreateFirstRow()
+        {
+            //В таблицах всегда должна существовать хотя бы одна строка
+            if (DiamStep.Rows.Count == 0)
+                DiamStep.Rows.Add();
+
+            if (DiamCost.Rows.Count == 0)
+                DiamCost.Rows.Add();
+
+            if (Length.Rows.Count == 0)
+                Length.Rows.Add();
+
         }
 
         public Boolean getIsDataChanged()
@@ -185,7 +208,7 @@ namespace CalcFittingsPlugin
                     ||
                     !int.TryParse(DiamStep.Rows[i].ItemArray[1].ToString(), out int diamValue))
                 {
-                    continue; 
+                    continue;
                 }
 
                 if (checkedDiameters.ContainsKey(diamValue))
@@ -202,13 +225,13 @@ namespace CalcFittingsPlugin
                         ||
                         !int.TryParse(DiamCost.Rows[j].ItemArray[1].ToString(), out int diamInCostValue))
                     {
-                        continue; 
+                        continue;
                     }
 
                     if (diamInCostValue == diamValue)
                     {
-                        isDiamFoundInCost = true; 
-                        break; 
+                        isDiamFoundInCost = true;
+                        break;
                     }
                 }
 
@@ -227,17 +250,43 @@ namespace CalcFittingsPlugin
             LengthMessage = (LengthMessage.Length > 0) ? Tools.ForLength + LengthMessage : "";
             invalideMessage = (invalideMessage.Length > 0) ? Tools.InvalideData + invalideMessage : "";
 
-
             message = diamStepMessage + diamCostMessage + LengthMessage + invalideMessage;
             message = (message.Length > 0) ? Tools.ChangesNotSaved + message : "";
 
             return message;
         }
 
+        //Данный метод общий для 3х гридов, нужен для отслеживания наличия выделенной строки
+        private void DataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            DataGrid dataGrid = sender as DataGrid;
+
+            bool isRowSelected = dataGrid.SelectedItem != null;
+
+            DeleteButton.IsEnabled = isRowSelected;
+        }
+
         private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             // При смене вкладки завершаем редактирование во всех DataGrid
             CommitAllDataGrids();
+
+            // Обновляем состояние кнопки "Удалить"
+            bool isRowSelected = false;
+            switch (GridTab.SelectedIndex)
+            {
+                case 0: // Вкладка Диаметр – Шаг
+                    isRowSelected = DiamStepView.SelectedItem != null;
+                    break;
+                case 1: // Вкладка Диаметр – Цена
+                    isRowSelected = DiamCostView.SelectedItem != null;
+                    break;
+                case 2: // Вкладка Длина
+                    isRowSelected = LengthView.SelectedItem != null;
+                    break;
+            }
+
+            DeleteButton.IsEnabled = isRowSelected;
         }
 
         //Данный метод завершает редактирование во всех гридах, если завершить его не удалось – отменяет изменения
@@ -269,7 +318,7 @@ namespace CalcFittingsPlugin
 
                 return commitSuccess;
             }
-            catch 
+            catch
             {
                 return false;
             }
@@ -277,6 +326,9 @@ namespace CalcFittingsPlugin
 
         private void Button_Save_Click(object sender, RoutedEventArgs e)
         {
+
+            // Выполняем сохранение
+            CommitAllDataGrids();
             string validateMsg = ValidateSave();
             if (validateMsg == "")
             {
@@ -304,15 +356,21 @@ namespace CalcFittingsPlugin
             {
                 case 0: //Активная вкладка Диаметр – Шаг
                     DeleteRowFromDataTable(DiamStep, DiamStepView.SelectedIndex);
+                    CreateFirstRow();
                     RecalcNum(DiamStep);
+                    _selectedDiamStepRow = null;
                     break;
                 case 1: //Активная вкладка Диаметр – Цена
                     DeleteRowFromDataTable(DiamCost, DiamCostView.SelectedIndex);
+                    CreateFirstRow();
                     RecalcNum(DiamCost);
+                    _selectedDiamCostRow = null;
                     break;
                 case 2: //Активная вкладка Длина
                     DeleteRowFromDataTable(Length, LengthView.SelectedIndex);
+                    CreateFirstRow();
                     RecalcNum(Length);
+                    _selectedLengthRow = null;
                     break;
             }
 
@@ -321,20 +379,53 @@ namespace CalcFittingsPlugin
 
         private void Button_Add_Click(object sender, RoutedEventArgs e)
         {
+            DataRowView newRowView = null;
+
             switch (GridTab.SelectedIndex)
             {
-                case 0: //Активная вкладка Диаметр – Шаг
-                    DiamStep.Rows.Add();
+                case 0: // Активная вкладка Диаметр – Шаг
+                    var newRowDiamStep = DiamStep.NewRow();
+                    DiamStep.Rows.Add(newRowDiamStep);
                     RecalcNum(DiamStep);
+                    newRowView = DiamStepView.Items.OfType<DataRowView>().LastOrDefault();
+                    _selectedDiamStepRow = newRowView;
                     break;
-                case 1: //Активная вкладка Диаметр – Цена
-                    DiamCost.Rows.Add();
+                case 1: // Активная вкладка Диаметр – Цена
+                    var newRowDiamCost = DiamCost.NewRow();
+                    DiamCost.Rows.Add(newRowDiamCost);
                     RecalcNum(DiamCost);
+                    newRowView = DiamCostView.Items.OfType<DataRowView>().LastOrDefault();
+                    _selectedDiamCostRow = newRowView;
                     break;
-                case 2: //Активная вкладка Длина
-                    Length.Rows.Add();
+                case 2: // Активная вкладка Длина
+                    var newRowLength = Length.NewRow();
+                    Length.Rows.Add(newRowLength);
                     RecalcNum(Length);
+                    newRowView = LengthView.Items.OfType<DataRowView>().LastOrDefault();
+                    _selectedLengthRow = newRowView;
                     break;
+            }
+
+            if (newRowView != null)
+            {
+                switch (GridTab.SelectedIndex)
+                {
+                    case 0:
+                        DiamStepView.SelectedItem = newRowView;
+                        DiamStepView.ScrollIntoView(newRowView);
+                        DiamStepView.Focus();
+                        break;
+                    case 1:
+                        DiamCostView.SelectedItem = newRowView;
+                        DiamCostView.ScrollIntoView(newRowView);
+                        DiamCostView.Focus();
+                        break;
+                    case 2:
+                        LengthView.SelectedItem = newRowView;
+                        LengthView.ScrollIntoView(newRowView);
+                        LengthView.Focus();
+                        break;
+                }
             }
 
             SaveButton.IsEnabled = true;
@@ -347,7 +438,7 @@ namespace CalcFittingsPlugin
             foreach (DataRow row in dataTable.Rows)
             {
                 row["Num"] = num;
-                num ++;
+                num++;
             }
         }
 
@@ -366,10 +457,9 @@ namespace CalcFittingsPlugin
             var textBox = e.OriginalSource as TextBox;
             string currentText = textBox?.Text;
 
-            // Проверяем, является ли вводимый текст числом
-            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)) || (e.Text.Contains(" ")))
+            if (!Tools.IsInt(e.Text) || (e.Text == "0" && (currentText == null || currentText.Length == 0)) || (e.Text.Contains(' ')))
             {
-                e.Handled = true; // Запрещаем ввод
+                e.Handled = true;
             }
         }
 
@@ -379,7 +469,7 @@ namespace CalcFittingsPlugin
             var editedText = (e.EditingElement as TextBox)?.Text;
             if (oldCellValue?.ToString() != editedText)
             {
-                SaveButton.IsEnabled = true; 
+                SaveButton.IsEnabled = true;
             }
         }
 
@@ -389,7 +479,7 @@ namespace CalcFittingsPlugin
             var dataGrid = sender as DataGrid;
             if (dataGrid != null && e.Row.Item is DataRowView row)
             {
-                oldCellValue = row[e.Column.DisplayIndex]; 
+                oldCellValue = row[e.Column.DisplayIndex];
             }
         }
 
