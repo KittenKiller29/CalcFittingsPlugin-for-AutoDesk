@@ -20,6 +20,43 @@
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
 
+        <!-- Стиль для кнопок -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="BorderBrush" Value="Gray"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2">
+                            <ContentPresenter x:Name="ContentSite"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- Цвет при наведении -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FFE3F2FF"/>
+                                <!-- Синий цвет -->
+                            </Trigger>
+                            <!-- Цвет для неактивной кнопки -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#FFE8E8E8"/>
+                                <Setter Property="Foreground" Value="#FF515151"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <DataTemplate x:Key="CellTemplateWithBorder">
             <Border BorderBrush="DarkGray" BorderThickness="0,0,1,0">
                 <ContentPresenter Content="{Binding}" Margin="5"/>
@@ -43,31 +80,31 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Кнопки -->
-                <Button Grid.Column="0" Height="40" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="0" Height="40" Style="{StaticResource {x:Type Button}}" Name="LoadFitButton" Click="LoadFitCSV">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource ExcelIcon}" Width="25" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Загрузить армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="2" Height="40" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="2" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource PlayIcon}" Width="25" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Рассчитать доп армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="4" Height="40" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="4" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource SuccessIcon}" Width="28" Height="28" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
                         <TextBlock Text="Применить к модели" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="6" Height="40" Background="White" BorderBrush="Gray">
+                <Button Grid.Column="6" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource CancelIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
                         <TextBlock Text="Отменить применение" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="8" Height="40" Background="White" BorderBrush="Gray" Click="OpenFitDataEditor">
+                <Button Grid.Column="8" Height="40" Style="{StaticResource {x:Type Button}}" Click="OpenFitDataEditor">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource EditIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Данные по арматуре" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>

@@ -22,6 +22,8 @@ namespace CalcFittingsPlugin
         public const string ForDiamCost = "Для таблицы Диаметр – Цена:\n";
         public const string ForLength = "Для таблицы Длина:\n";
         public const string InvalideData = "Невалидные данные:\n";
+        public const string SucLoadFit = "Загрузка армирования: Успешно.";
+        public const string ErrLoadFit = "Загрузка армирования: Ошибка.";
 
         // Преобразует текст в Лог-сообщение [время]: Текст
         public static string CreateLogMessage(string text)

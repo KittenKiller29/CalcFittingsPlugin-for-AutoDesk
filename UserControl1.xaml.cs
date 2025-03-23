@@ -13,6 +13,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Microsoft.Win32;
 
 namespace CalcFittingsPlugin
 {
@@ -94,5 +95,21 @@ namespace CalcFittingsPlugin
             }
         }
 
+        //Событие – загрузка основного армирования
+        private void LoadFitCSV(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+
+            // Настраиваем фильтр для выбора только CSV файлов
+            openFileDialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
+            openFileDialog.FilterIndex = 1; // По умолчанию выбираем CSV
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                string filePath = openFileDialog.FileName;
+
+                
+            }
+        }
     }
 }
