@@ -128,7 +128,11 @@
                         <Label Content="Максимально допустимое число получаемых решений" Margin="0,0,10,10" Background="{x:Null}" FontWeight="Bold"/>
                         <TextBox Name="MaxSolTextBox" PreviewTextInput="MaxSolTextBox_PreviewTextInput" Width="152" Margin="0,6,0,12" TextChanged="TextBox_MaxSol_TextChanged"/>
                     </StackPanel>
-                    <ListView Margin="0,1,20,0" Height="323">
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Имя уровня плиты перекрытия" Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
+                        <TextBox Name="FlrTextBox" Width="152" Margin="141,1,0,18" TextChanged="TextBox_MaxSol_TextChanged"/>
+                    </StackPanel>
+                    <ListView Margin="0,-5,20,0" Height="292">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
