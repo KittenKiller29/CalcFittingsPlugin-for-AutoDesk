@@ -70,6 +70,20 @@ namespace CalcFittingsPlugin
 
         private void TextBox_MaxSol_TextChanged(object sender, TextChangedEventArgs e)
         {
+            string newText = "";
+            //Очищаем текст от не цифр
+
+            for(int i = 0; i< MaxSolTextBox.Text.Length; i++)
+            {
+                string symb = "" + MaxSolTextBox.Text[i];
+                if (Tools.IsInt(symb))
+                {
+                    newText += symb;
+                }
+            }
+
+            MaxSolTextBox.Text = newText;
+
             if (MaxSolTextBox.Text == "")
             {
                 NumOfSol = 0;

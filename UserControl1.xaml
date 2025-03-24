@@ -118,11 +118,11 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="520"/>
                 <ColumnDefinition Width="10"/>
-                <ColumnDefinition Width="332"/>
+                <ColumnDefinition Width="338"/>
             </Grid.ColumnDefinitions>
 
             <!-- Левая панель -->
-            <Border Grid.Column="0"  BorderThickness="0,0,0,1">
+            <Border Grid.Column="0"  BorderThickness="0,0,0,0">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Максимально допустимое число получаемых решений" Margin="0,0,10,10" Background="{x:Null}" FontWeight="Bold"/>
@@ -132,7 +132,7 @@
                         <Label Content="Имя уровня плиты перекрытия" Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
                         <TextBox Name="FlrTextBox" Width="152" Margin="141,1,0,18" TextChanged="TextBox_MaxSol_TextChanged"/>
                     </StackPanel>
-                    <ListView Margin="0,-5,20,0" Height="292">
+                    <ListView Margin="0,-5,20,0" Height="292" BorderBrush="Gray">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
@@ -149,12 +149,15 @@
             <Border Grid.Column="1" BorderBrush="Gray" BorderThickness="1,0,0,0" Margin="0,5,0,0"/>
 
             <!-- Правая панель -->
-            <Border Grid.Column="2" BorderThickness="0,0,0,1" Margin="10,0,0,0">
-                <StackPanel Width="322" Height="370">
+            <Border Grid.Column="2" Margin="10,0,0,0" Width="326">
+                <StackPanel Width="326" Height="370">
+                    <!-- Заголовок -->
                     <Label Content="Сообщения плагина" Margin="0,0,10,10" Background="{x:Null}" FontWeight="Bold"/>
-                    <Border BorderBrush="LightGray" BorderThickness="0" Padding="0">
-                        <TextBox Name="ConsoleLog" Margin="0,1,0,0" Height="323" Width="320" TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" BorderThickness="1"
-                             VerticalScrollBarVisibility="Visible"/>
+
+                    <!-- TextBox для логов -->
+                    <Border BorderThickness="0" CornerRadius="1">
+                        <TextBox Name="ConsoleLog" Margin="-6,0,10,0" TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" BorderThickness="1" BorderBrush="Gray"
+                     VerticalScrollBarVisibility="Visible" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Height="324" Width="310"/>
                     </Border>
                 </StackPanel>
             </Border>

@@ -467,6 +467,20 @@ namespace CalcFittingsPlugin
         private void DataGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
             var editedText = (e.EditingElement as TextBox)?.Text;
+            string newText = "";
+            //Очищаем текст от не цифр
+
+            for (int i = 0; i < editedText.Length; i++)
+            {
+                string symb = "" + editedText[i];
+                if (Tools.IsInt(symb))
+                {
+                    newText += symb;
+                }
+            }
+
+            (e.EditingElement as TextBox).Text = newText;
+
             if (oldCellValue?.ToString() != editedText)
             {
                 SaveButton.IsEnabled = true;
@@ -488,5 +502,6 @@ namespace CalcFittingsPlugin
         {
             e.Row.PreviewTextInput += DataGrid_PreviewInput;
         }
+
     }
 }
