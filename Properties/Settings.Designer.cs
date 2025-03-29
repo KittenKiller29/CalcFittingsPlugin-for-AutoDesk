@@ -34,5 +34,17 @@ namespace CalcFittingsPlugin.Properties {
                 this["MaxSol"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string FlrName {
+            get {
+                return ((string)(this["FlrName"]));
+            }
+            set {
+                this["FlrName"] = value;
+            }
+        }
     }
 }

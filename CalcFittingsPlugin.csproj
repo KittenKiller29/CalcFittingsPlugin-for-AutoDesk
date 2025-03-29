@@ -166,31 +166,31 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="excel_icon.png" />
+    <Resource Include="images\excel_icon.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="check.png" />
-    <Resource Include="business.png" />
+    <Resource Include="images\check.png" />
+    <Resource Include="images\business.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="cancel-button.png" />
+    <Resource Include="images\cancel-button.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="added.png" />
-    <Resource Include="apply.png" />
-    <Resource Include="canceledit.png" />
-    <Resource Include="checking.png" />
-    <Resource Include="editing.png" />
-    <Resource Include="save.png" />
-    <Resource Include="writing.png" />
+    <Resource Include="images\added.png" />
+    <Resource Include="images\apply.png" />
+    <Resource Include="images\canceledit.png" />
+    <Resource Include="images\checking.png" />
+    <Resource Include="images\editing.png" />
+    <Resource Include="images\save.png" />
+    <Resource Include="images\writing.png" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="minus.png" />
+    <Resource Include="images\minus.png" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="minus32.png" />
-    <Content Include="minus5.png" />
-    <Content Include="minus67.png" />
+    <Content Include="images\minus32.png" />
+    <Content Include="images\minus5.png" />
+    <Content Include="images\minus67.png" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Properties\Resources.resx">

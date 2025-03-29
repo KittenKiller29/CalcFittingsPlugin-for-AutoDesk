@@ -26,6 +26,7 @@ namespace CalcFittingsPlugin
         static private ArrayList DiamStep;
         static private ArrayList DiamCost;
         static private ArrayList Length;
+        static private string FlrName;
 
         public UserControl1()
         {
@@ -33,6 +34,7 @@ namespace CalcFittingsPlugin
             DiamStep = new ArrayList();
             DiamCost = new ArrayList();
             Length = new ArrayList();
+
 
             //Валидиируем JSON и загружаем данные
             string msg = DataFile.ValidateJSONFile();
@@ -45,6 +47,9 @@ namespace CalcFittingsPlugin
                 MaxSolTextBox.Text = "";
             else
                 MaxSolTextBox.Text = NumOfSol.ToString();
+
+            FlrName = Properties.Settings.Default.FlrName;
+            FlrTextBox.Text = FlrName;
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -96,6 +101,7 @@ namespace CalcFittingsPlugin
         protected override void OnClosed(EventArgs e)
         {
             Properties.Settings.Default.MaxSol = NumOfSol;
+            Properties.Settings.Default.FlrName = FlrName;
             Properties.Settings.Default.Save();
             base.OnClosed(e);
         }
@@ -124,6 +130,10 @@ namespace CalcFittingsPlugin
 
                 
             }
+        }
+        private void FlrTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            FlrName = FlrTextBox.Text;
         }
     }
 }

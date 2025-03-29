@@ -9,11 +9,11 @@
         ResizeMode="NoResize"
         Title="Плагин расчета дополнительного армирования">
     <Window.Resources>
-        <BitmapImage x:Key="ExcelIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/excel_icon.png"/>
-        <BitmapImage x:Key="PlayIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/business.png"/>
-        <BitmapImage x:Key="SuccessIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/checking.png"/>
-        <BitmapImage x:Key="CancelIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/canceledit.png"/>
-        <BitmapImage x:Key="EditIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/writing.png"/>
+        <BitmapImage x:Key="ExcelIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/excel_icon.png"/>
+        <BitmapImage x:Key="PlayIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/business.png"/>
+        <BitmapImage x:Key="SuccessIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/checking.png"/>
+        <BitmapImage x:Key="CancelIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/canceledit.png"/>
+        <BitmapImage x:Key="EditIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/writing.png"/>
 
         <Style TargetType="ListViewItem">
             <Setter Property="BorderBrush" Value="DarkGray"/>
@@ -130,7 +130,7 @@
                     </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Имя уровня плиты перекрытия" Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
-                        <TextBox Name="FlrTextBox" Width="152" Margin="141,1,0,18" TextChanged="TextBox_MaxSol_TextChanged"/>
+                        <TextBox Name="FlrTextBox" Width="152" Margin="141,1,0,18" TextChanged="FlrTextBox_TextChanged"/>
                     </StackPanel>
                     <ListView Margin="0,-5,20,0" Height="292" BorderBrush="Gray">
                         <ListView.View>

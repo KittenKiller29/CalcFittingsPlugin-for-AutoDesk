@@ -12,9 +12,9 @@
         Title="Редактор данных используемой арматуры">
     <Window.Resources>
         <!-- Иконки -->
-        <BitmapImage x:Key="SaveIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/save.png"/>
-        <BitmapImage x:Key="MinusIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/minus.png"/>
-        <BitmapImage x:Key="AddIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/added.png"/>
+        <BitmapImage x:Key="SaveIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/save.png"/>
+        <BitmapImage x:Key="MinusIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/minus.png"/>
+        <BitmapImage x:Key="AddIcon" UriSource="pack://application:,,,/CalcFittingsPlugin;component/images/added.png"/>
 
         <!-- Стиль для TabItem -->
         <Style TargetType="TabItem">
