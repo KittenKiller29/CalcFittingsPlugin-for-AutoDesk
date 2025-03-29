@@ -24,6 +24,11 @@ namespace CalcFittingsPlugin
         public const string InvalideData = "Невалидные данные:\n";
         public const string SucLoadFit = "Загрузка армирования: Успешно.";
         public const string ErrLoadFit = "Загрузка армирования: Ошибка.";
+        public const string ParseStart = "Начата загрузка армирования из .csv файла.";
+        public const string ParceEnd = "Загрузка армирования из .csv файла завершена.";
+        public const string ParceErr = "Не удалось прочитать данные об армировании из .csv файла.";
+        public const int HeadersCount = 10;
+        public static readonly string[] HeadersTemplate = { "Тип", "Номер", "Координата X узлов", "Координата Y узлов", "Координата Z центр", "Координата Z минимум", "As1X", "As2X", "As3Y", "As4Y" };
 
         // Преобразует текст в Лог-сообщение [время]: Текст
         public static string CreateLogMessage(string text)

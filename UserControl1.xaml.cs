@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,6 +16,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Microsoft.Win32;
+using Microsoft.VisualBasic.FileIO;
 
 namespace CalcFittingsPlugin
 {
@@ -116,21 +119,135 @@ namespace CalcFittingsPlugin
         }
 
         //Событие – загрузка основного армирования
-        private void LoadFitCSV(object sender, RoutedEventArgs e)
+        private async void LoadFitCSV(object sender, RoutedEventArgs e)
         {
             OpenFileDialog openFileDialog = new OpenFileDialog();
-
-            // Настраиваем фильтр для выбора только CSV файлов
             openFileDialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
-            openFileDialog.FilterIndex = 1; // По умолчанию выбираем CSV
+            openFileDialog.FilterIndex = 1;
 
             if (openFileDialog.ShowDialog() == true)
             {
                 string filePath = openFileDialog.FileName;
+                ProgressWindow progressWindow = null;
 
-                
+                try
+                {
+                    // Создаем и настраиваем окно в UI-потоке
+                    progressWindow = new ProgressWindow
+                    {
+                        Owner = this,
+                        WindowStartupLocation = WindowStartupLocation.CenterOwner
+                    };
+
+                    // Показываем окно
+                    progressWindow.Show();
+
+                    // Добавляем сообщение в лог
+                    ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParseStart));
+
+                    await ParseCsvWithProgress(openFileDialog.FileName, progressWindow);
+                    progressWindow.UpdateProgress(100, "Завершено");
+                    await Task.Delay(1000); // Даем время увидеть 100%
+
+                    ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParceEnd));
+                }
+                catch (Exception ex)
+                {
+                    ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParceErr));
+                }
+                finally
+                {
+                    progressWindow.SafeClose();
+                    this.Focus();
+                    this.Activate();
+                }
             }
         }
+
+
+        private async Task ParseCsvWithProgress(string filePath, ProgressWindow progressWindow)
+        {
+            long totalLines = CountFileLines(filePath);
+            long processedLines = 0;
+
+            try
+            {
+                var encoding = DetectFileEncoding(filePath);
+                using (var parser = new TextFieldParser(filePath, encoding))
+                {
+                    parser.TextFieldType = FieldType.Delimited;
+                    parser.SetDelimiters(";");
+                    parser.HasFieldsEnclosedInQuotes = false;
+
+                    // Читаем заголовки
+                    string[] headers = parser.ReadFields();
+
+                    // Валидируем заголовки файла
+                    if (headers.Length != Tools.HeadersCount)
+                    {
+                        MessageBox.Show(
+                            $"Ошибка при загрузке файла: несоответствие числа заголовков (" +
+                            headers.Length.ToString() + ") с ожидаемым (" + Tools.HeadersCount.ToString() + ").", "Ошибка",
+                            MessageBoxButton.OK, MessageBoxImage.Warning
+                            );
+                        throw new Exception();
+                    }
+
+                    // Валидируем имена заголовков
+                    for (int i = 0; i < Tools.HeadersCount; i++)
+                    {
+                        if (!string.Equals(headers[i], Tools.HeadersTemplate[i], StringComparison.OrdinalIgnoreCase))
+                        {
+                            MessageBox.Show(
+                                $"Ошибка при загрузке файла: ожидался заголовок (" +
+                                Tools.HeadersTemplate[i] + "), но вместо него найден (" + headers[i] + ").", "Ошибка",
+                                MessageBoxButton.OK, MessageBoxImage.Warning
+                                );
+                            throw new Exception(); 
+                        }
+                    }
+
+                    // Основной цикл обработки данных
+                    while (!parser.EndOfData)
+                    {
+                        string[] fields = parser.ReadFields();
+                        processedLines++;
+
+                        // Обновляем прогресс
+                        int percent = (int)((double)processedLines / totalLines * 100);
+                        progressWindow.UpdateProgress(percent, $"{percent}% ({processedLines}/{totalLines} строк)");
+                        //await Task.Delay(1);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }
+        }
+
+        public static Encoding DetectFileEncoding(string filePath)
+        {
+            using (var reader = new StreamReader(filePath, Encoding.Default, true))
+            {
+                reader.Peek(); // Необходимо для определения кодировки
+                return reader.CurrentEncoding;
+            }
+        }
+
+        private long CountFileLines(string filePath)
+        {
+            long count = 0;
+            using (var reader = new StreamReader(filePath))
+            {
+                while (reader.ReadLine() != null)
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+
         private void FlrTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             FlrName = FlrTextBox.Text;
