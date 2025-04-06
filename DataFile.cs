@@ -14,16 +14,6 @@ namespace CalcFittingsPlugin
 {
     public static class DataFile
     {
-        //Загружает из JSON данные по арматуре плагина в двумерные массивы
-        public static void LoadAllData(ArrayList DiamStep, ArrayList DiamCost, ArrayList Length)
-        {
-            if (!File.Exists(GetDataFilePath())) return;
-            //Очищаем полученные массивы, так как данные будут полностью перезагружены из json
-            DiamStep.Clear();
-            DiamCost.Clear();
-            Length.Clear();
-        }
-
         //Загружает из JSON данные по арматуре плагина в таблицы данных
         public static void LoadAllData(DataTable DiamStep, DataTable DiamCost, DataTable Length)
         {

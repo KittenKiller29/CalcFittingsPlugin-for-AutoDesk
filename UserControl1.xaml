@@ -86,7 +86,7 @@
                         <TextBlock Text="Загрузить армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="2" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False">
+                <Button Grid.Column="2" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False" Name ="CalcFittingBtn">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource PlayIcon}" Width="25" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Рассчитать доп армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>

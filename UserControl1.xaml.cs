@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Data;
 using System.IO;
 using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -26,18 +28,23 @@ namespace CalcFittingsPlugin
     public partial class UserControl1 : Window
     {
         static private int NumOfSol;
-        static private ArrayList DiamStep;
-        static private ArrayList DiamCost;
-        static private ArrayList Length;
+        static private DataTable DiamStep;
+        static private DataTable DiamCost;
+        static private DataTable Length;
         static private string FlrName;
+        static private DataTable FitDataTable;
+        
 
         public UserControl1()
         {
             InitializeComponent();
-            DiamStep = new ArrayList();
-            DiamCost = new ArrayList();
-            Length = new ArrayList();
 
+            DiamStep = new DataTable();
+            DiamCost = new DataTable();
+            Length = new DataTable();
+            FitDataTable = new DataTable();
+
+            InitializeDataTables();
 
             //Валидиируем JSON и загружаем данные
             string msg = DataFile.ValidateJSONFile();
@@ -53,6 +60,32 @@ namespace CalcFittingsPlugin
 
             FlrName = Properties.Settings.Default.FlrName;
             FlrTextBox.Text = FlrName;
+        }
+
+        private void InitializeDataTables()
+        {
+            //Заполняем Диаметр – Шаг
+            DiamStep.Columns.Add("Diam", typeof(int));
+            DiamStep.Columns.Add("Step", typeof(int));
+
+            //Заполняем Диаметр – Цена
+            DiamCost.Columns.Add("Diam", typeof(int));
+            DiamCost.Columns.Add("Cost", typeof(int));
+
+            //Заполняем Длина
+            Length.Columns.Add("Length", typeof(int));
+
+            //Заполняем таблицу арматуры
+            FitDataTable.Columns.Add("Тип", typeof(string));
+            FitDataTable.Columns.Add("Номер", typeof(int));
+            FitDataTable.Columns.Add("Координата X узлов", typeof(double));
+            FitDataTable.Columns.Add("Координата Y узлов", typeof(double));
+            FitDataTable.Columns.Add("Координата Z центр", typeof(double));
+            FitDataTable.Columns.Add("Координата Z минимум", typeof(double));
+            FitDataTable.Columns.Add("As1X", typeof(double));
+            FitDataTable.Columns.Add("As2X", typeof(double));
+            FitDataTable.Columns.Add("As3Y", typeof(double));
+            FitDataTable.Columns.Add("As4Y", typeof(double));
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -121,6 +154,7 @@ namespace CalcFittingsPlugin
         //Событие – загрузка основного армирования
         private async void LoadFitCSV(object sender, RoutedEventArgs e)
         {
+            
             OpenFileDialog openFileDialog = new OpenFileDialog();
             openFileDialog.Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*";
             openFileDialog.FilterIndex = 1;
@@ -132,11 +166,13 @@ namespace CalcFittingsPlugin
 
                 try
                 {
+                    this.IsEnabled = false;
                     // Создаем и настраиваем окно в UI-потоке
                     progressWindow = new ProgressWindow
                     {
                         Owner = this,
-                        WindowStartupLocation = WindowStartupLocation.CenterOwner
+                        WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                        Topmost = true
                     };
 
                     // Показываем окно
@@ -150,16 +186,19 @@ namespace CalcFittingsPlugin
                     await Task.Delay(1000); // Даем время увидеть 100%
 
                     ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParceEnd));
+                    CalcFittingBtn.IsEnabled = true;
                 }
-                catch (Exception ex)
+                catch
                 {
                     ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParceErr));
+                    CalcFittingBtn.IsEnabled = false;
                 }
                 finally
                 {
                     progressWindow.SafeClose();
                     this.Focus();
                     this.Activate();
+                    this.IsEnabled = true;
                 }
             }
         }
@@ -172,6 +211,7 @@ namespace CalcFittingsPlugin
 
             try
             {
+                FitDataTable.Clear();
                 var encoding = DetectFileEncoding(filePath);
                 using (var parser = new TextFieldParser(filePath, encoding))
                 {
@@ -210,18 +250,51 @@ namespace CalcFittingsPlugin
                     // Основной цикл обработки данных
                     while (!parser.EndOfData)
                     {
-                        string[] fields = parser.ReadFields();
+                        DataRow row = FitDataTable.NewRow();
+
                         processedLines++;
+
+                        string[] fields = parser.ReadFields();
+
+                        if (!int.TryParse(fields[1], out _) || 
+                            !double.TryParse(fields[2], NumberStyles.Any, CultureInfo.InvariantCulture, out _) ||
+                            !double.TryParse(fields[3], NumberStyles.Any, CultureInfo.InvariantCulture, out _) ||
+                            !double.TryParse(fields[4], NumberStyles.Any, CultureInfo.InvariantCulture, out _) ||
+                            !double.TryParse(fields[5], NumberStyles.Any, CultureInfo.InvariantCulture, out _) ||
+                            !double.TryParse(fields[6], NumberStyles.Any, CultureInfo.InvariantCulture, out _) ||
+                            !double.TryParse(fields[7], NumberStyles.Any, CultureInfo.InvariantCulture, out _) ||
+                            !double.TryParse(fields[8], NumberStyles.Any, CultureInfo.InvariantCulture, out _) ||
+                            !double.TryParse(fields[9], NumberStyles.Any, CultureInfo.InvariantCulture, out _)
+                            )
+                        {
+                            MessageBox.Show($"Ошибка типа данных в строке " + processedLines, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                            throw new Exception();
+                        }
+
+                        row["Тип"] = fields[0];
+                        row["Номер"] = int.Parse(fields[1]);
+                        row["Координата X узлов"] = double.Parse(fields[2], CultureInfo.InvariantCulture);
+                        row["Координата Y узлов"] = double.Parse(fields[3], CultureInfo.InvariantCulture);
+                        row["Координата Z центр"] = double.Parse(fields[4], CultureInfo.InvariantCulture);
+                        row["Координата Z минимум"] = double.Parse(fields[5], CultureInfo.InvariantCulture);
+                        row["As1X"] = double.Parse(fields[6], CultureInfo.InvariantCulture);
+                        row["As2X"] = double.Parse(fields[7], CultureInfo.InvariantCulture);
+                        row["As3Y"] = double.Parse(fields[8], CultureInfo.InvariantCulture);
+                        row["As4Y"] = double.Parse(fields[9], CultureInfo.InvariantCulture);
+
+                        FitDataTable.Rows.Add(row);
 
                         // Обновляем прогресс
                         int percent = (int)((double)processedLines / totalLines * 100);
                         progressWindow.UpdateProgress(percent, $"{percent}% ({processedLines}/{totalLines} строк)");
-                        //await Task.Delay(1);
+                        if (processedLines % 100 == 0) await Task.Delay(1);
                     }
                 }
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
+                MessageBox.Show(ex.Message);
                 throw;
             }
         }
