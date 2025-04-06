@@ -292,9 +292,8 @@ namespace CalcFittingsPlugin
                     }
                 }
             }
-            catch(Exception ex)
+            catch
             {
-                MessageBox.Show(ex.Message);
                 throw;
             }
         }
