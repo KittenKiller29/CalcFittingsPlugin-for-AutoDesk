@@ -76,16 +76,16 @@ namespace CalcFittingsPlugin
             Length.Columns.Add("Length", typeof(int));
 
             //Заполняем таблицу арматуры
-            FitDataTable.Columns.Add("Тип", typeof(string));
-            FitDataTable.Columns.Add("Номер", typeof(int));
-            FitDataTable.Columns.Add("Координата X узлов", typeof(double));
-            FitDataTable.Columns.Add("Координата Y узлов", typeof(double));
-            FitDataTable.Columns.Add("Координата Z центр", typeof(double));
-            FitDataTable.Columns.Add("Координата Z минимум", typeof(double));
-            FitDataTable.Columns.Add("As1X", typeof(double));
-            FitDataTable.Columns.Add("As2X", typeof(double));
-            FitDataTable.Columns.Add("As3Y", typeof(double));
-            FitDataTable.Columns.Add("As4Y", typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[0], typeof(string));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[1], typeof(int));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[2], typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[3], typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[4], typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[5], typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[6], typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[7], typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[8], typeof(double));
+            FitDataTable.Columns.Add(Tools.HeadersTemplate[9], typeof(double));
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -272,16 +272,16 @@ namespace CalcFittingsPlugin
                             throw new Exception();
                         }
 
-                        row["Тип"] = fields[0];
-                        row["Номер"] = int.Parse(fields[1]);
-                        row["Координата X узлов"] = double.Parse(fields[2], CultureInfo.InvariantCulture);
-                        row["Координата Y узлов"] = double.Parse(fields[3], CultureInfo.InvariantCulture);
-                        row["Координата Z центр"] = double.Parse(fields[4], CultureInfo.InvariantCulture);
-                        row["Координата Z минимум"] = double.Parse(fields[5], CultureInfo.InvariantCulture);
-                        row["As1X"] = double.Parse(fields[6], CultureInfo.InvariantCulture);
-                        row["As2X"] = double.Parse(fields[7], CultureInfo.InvariantCulture);
-                        row["As3Y"] = double.Parse(fields[8], CultureInfo.InvariantCulture);
-                        row["As4Y"] = double.Parse(fields[9], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[0]] = fields[0];
+                        row[Tools.HeadersTemplate[1]] = int.Parse(fields[1]);
+                        row[Tools.HeadersTemplate[2]] = double.Parse(fields[2], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[3]] = double.Parse(fields[3], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[4]] = double.Parse(fields[4], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[5]] = double.Parse(fields[5], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[6]] = double.Parse(fields[6], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[7]] = double.Parse(fields[7], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[8]] = double.Parse(fields[8], CultureInfo.InvariantCulture);
+                        row[Tools.HeadersTemplate[9]] = double.Parse(fields[9], CultureInfo.InvariantCulture);
 
                         FitDataTable.Rows.Add(row);
 
@@ -323,6 +323,43 @@ namespace CalcFittingsPlugin
         private void FlrTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             FlrName = FlrTextBox.Text;
+        }
+
+        private async void CalcFittingBtn_Click(object sender, RoutedEventArgs e)
+        {
+            this.IsEnabled = false;
+            ProgressWindow progressWindow = new ProgressWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Topmost = true,
+                Title = "Расчет зон дополнительного армирования"
+            };
+
+            ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcStart));
+
+            try
+            {
+                progressWindow.Show();
+
+                if(!Command.ValidateLevel(FlrName))
+                {
+                    MessageBox.Show($"Не удалось выполнить расчет, для уровня '" + FlrName + "' отсутствует плита перекрытия в модели.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    throw new Exception();
+                }
+            }
+            catch
+            {
+                ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcErr));
+            }
+            finally
+            {
+                await Task.Delay(1);
+                progressWindow.SafeClose();
+                this.Focus();
+                this.Activate();
+                this.IsEnabled = true;
+            }
         }
     }
 }

@@ -20,5 +20,12 @@ namespace CalcFittingsPlugin
             view.Show();
             return Result.Succeeded;
         }
+
+        public static bool ValidateLevel(string lvlName)
+        {
+
+
+            return false;
+        }
     }
 }

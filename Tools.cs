@@ -27,6 +27,9 @@ namespace CalcFittingsPlugin
         public const string ParseStart = "Начата загрузка армирования из .csv файла.";
         public const string ParceEnd = "Загрузка армирования из .csv файла завершена.";
         public const string ParceErr = "Не удалось прочитать данные об армировании из .csv файла.";
+        public const string CalcStart = "Расчет запущен.";
+        public const string CalcErr = "Не удалось выполнить расчет.";
+        public const string CalcSuc = "Расчет выполнен успешно.";
         public const int HeadersCount = 10;
         public static readonly string[] HeadersTemplate = { "Тип", "Номер", "Координата X узлов", "Координата Y узлов", "Координата Z центр", "Координата Z минимум", "As1X", "As2X", "As3Y", "As4Y" };
 
