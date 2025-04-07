@@ -342,11 +342,14 @@ namespace CalcFittingsPlugin
             {
                 progressWindow.Show();
 
-                if(!Command.ValidateLevel(FlrName))
+                if(!Command.ValidateLevel(FlrName, Command.uiDoc))
                 {
-                    MessageBox.Show($"Не удалось выполнить расчет, для уровня '" + FlrName + "' отсутствует плита перекрытия в модели.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     throw new Exception();
                 }
+
+
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc));
             }
             catch
             {
