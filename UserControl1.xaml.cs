@@ -58,8 +58,12 @@ namespace CalcFittingsPlugin
             else
                 MaxSolTextBox.Text = NumOfSol.ToString();
 
+
+
             FlrName = Properties.Settings.Default.FlrName;
             FlrTextBox.Text = FlrName;
+
+            ArmTextBox.Text = Properties.Settings.Default.MainFit;
         }
 
         private void InitializeDataTables()
@@ -138,6 +142,7 @@ namespace CalcFittingsPlugin
         {
             Properties.Settings.Default.MaxSol = NumOfSol;
             Properties.Settings.Default.FlrName = FlrName;
+            Properties.Settings.Default.MainFit = ArmTextBox.Text;
             Properties.Settings.Default.Save();
             base.OnClosed(e);
         }
@@ -166,6 +171,12 @@ namespace CalcFittingsPlugin
 
                 try
                 {
+                    ApplyBtn.IsEnabled = false;
+                    CancelBtn.IsEnabled = false;
+
+                    //Сбрасываем модель к исходной, удаляем все текущие решения
+                    //to-do
+
                     this.IsEnabled = false;
                     // Создаем и настраиваем окно в UI-потоке
                     progressWindow = new ProgressWindow
@@ -320,6 +331,23 @@ namespace CalcFittingsPlugin
             return count;
         }
 
+        private string ValidateData()
+        {
+            if(DiamStep.Rows.Count == 0)
+            {
+                return "Не найдено комбинаций Диаметр-Шаг, проверьте Данные по арматуре.";
+            }
+            if (DiamCost.Rows.Count == 0)
+            {
+                return "Не найдено комбинаций Диаметр-Цена, проверьте Данные по арматуре.";
+            }
+            if (Length.Rows.Count == 0)
+            {
+                return "Не найдено комбинаций Длины, проверьте Данные по арматуре.";
+            }
+            return "";
+        }
+
         private void FlrTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             FlrName = FlrTextBox.Text;
@@ -347,7 +375,57 @@ namespace CalcFittingsPlugin
                     throw new Exception();
                 }
 
+                double MainFit = 0;
 
+                if(!double.TryParse(ArmTextBox.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out MainFit))
+                {
+                    if (!double.TryParse(ArmTextBox.Text, out MainFit))
+                    {
+                        MessageBox.Show("Значение основного армирования должно быть дробным числом.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        throw new Exception();
+                    }
+                }
+
+                if(NumOfSol == 0)
+                {
+                    MessageBox.Show("Не задано максимально допустимое число получаемых решений.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    throw new Exception();
+                }
+
+                //Валидируем данные арматуры, чтобы их можно было использовать
+                //в зонах дополнительного армирования
+                string msg = ValidateData();
+                if(msg != "")
+                {
+                    MessageBox.Show(msg, "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    throw new Exception();
+                }
+
+                progressWindow.UpdateProgress(33, "Определение узлов, превыщающих основное армирование.");
+
+                //Определяем таблицу узлов, требующих дополнительное армирование
+                DataTable needFit = FitDataTable.Copy();
+                needFit.Clear();
+
+                for(int i = 0; i < FitDataTable.Rows.Count; i++)
+                {
+                    
+                }
+
+                //Если по итогу не осталось узлов, требующих армирование – не продолжаем расчет, так как рассчитывать банально не для чего
+                if(needFit.Rows.Count == 0)
+                {
+                    MessageBox.Show("Не найдено узлов, которые превышали бы основное армирование.", "Расчет", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    throw new Exception();
+                }
+
+                progressWindow.UpdateProgress(66, "Расчет возможных вариантов зон дополнительного армирования.");
+
+
+
+
+                progressWindow.UpdateProgress(100, "Завершено");
+                await Task.Delay(1000); // Даем время увидеть 100%
 
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc));
             }
@@ -362,6 +440,32 @@ namespace CalcFittingsPlugin
                 this.Focus();
                 this.Activate();
                 this.IsEnabled = true;
+            }
+        }
+
+        private void ArmTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            string newText = "";
+            //Очищаем текст от пробелов
+
+            for (int i = 0; i < ArmTextBox.Text.Length; i++)
+            {
+                if(ArmTextBox.Text[i] != ' ')
+                newText = newText + ArmTextBox.Text[i];
+            }
+
+            ArmTextBox.Text = newText;
+        }
+
+        private void ArmTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            for(int i = 0; i < e.Text.Length; i++)
+            {
+                if(Char.IsLetter(e.Text[i]))
+                {
+                    e.Handled = true;
+                    break;
+                }
             }
         }
     }

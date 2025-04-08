@@ -92,13 +92,13 @@
                         <TextBlock Text="Рассчитать доп армирование" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="4" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False">
+                <Button Grid.Column="4" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False" Name="ApplyBtn">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource SuccessIcon}" Width="28" Height="28" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
                         <TextBlock Text="Применить к модели" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="6" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False">
+                <Button Grid.Column="6" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False" Name="CancelBtn">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource CancelIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
                         <TextBlock Text="Отменить применение" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
@@ -132,7 +132,11 @@
                         <Label Content="Имя уровня плиты перекрытия" Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
                         <TextBox Name="FlrTextBox" Width="152" Margin="141,1,0,18" TextChanged="FlrTextBox_TextChanged"/>
                     </StackPanel>
-                    <ListView Margin="0,-5,20,0" Height="292" BorderBrush="Gray">
+                    <StackPanel Orientation="Horizontal" Margin="0,-6,0,0">
+                        <Label Content="Значение основного армирования, см^2/м." Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
+                        <TextBox Name="ArmTextBox" Width="152" Margin="69,1,0,18" TextChanged="ArmTextBox_TextChanged" PreviewTextInput="ArmTextBox_PreviewTextInput"/>
+                    </StackPanel>
+                    <ListView Margin="0,-5,20,0" Height="261" BorderBrush="Gray">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>

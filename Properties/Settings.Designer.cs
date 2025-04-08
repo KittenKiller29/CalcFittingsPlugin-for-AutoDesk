@@ -46,5 +46,17 @@ namespace CalcFittingsPlugin.Properties {
                 this["FlrName"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("1.5")]
+        public string MainFit {
+            get {
+                return ((string)(this["MainFit"]));
+            }
+            set {
+                this["MainFit"] = value;
+            }
+        }
     }
 }
