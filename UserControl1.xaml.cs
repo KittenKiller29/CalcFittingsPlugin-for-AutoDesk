@@ -403,13 +403,18 @@ namespace CalcFittingsPlugin
 
                 progressWindow.UpdateProgress(33, "Определение узлов, превыщающих основное армирование.");
 
-                //Определяем таблицу узлов, требующих дополнительное армирование
+                //Удаляем wall узлы
                 DataTable needFit = FitDataTable.Copy();
                 needFit.Clear();
 
                 for(int i = 0; i < FitDataTable.Rows.Count; i++)
                 {
-                    
+                    if(FitDataTable.Rows[i][Tools.HeadersTemplate[0]].ToString() == "Wall")
+                    {
+                        continue;
+                    }
+
+     
                 }
 
                 //Если по итогу не осталось узлов, требующих армирование – не продолжаем расчет, так как рассчитывать банально не для чего
