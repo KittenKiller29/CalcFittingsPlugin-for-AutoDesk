@@ -19,6 +19,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Microsoft.Win32;
 using Microsoft.VisualBasic.FileIO;
+using Autodesk.Revit.DB;
 
 namespace CalcFittingsPlugin
 {
@@ -370,7 +371,9 @@ namespace CalcFittingsPlugin
             {
                 progressWindow.Show();
 
-                if(!Command.ValidateLevel(FlrName, Command.uiDoc))
+                List<Floor> floors = null;
+
+                if(!Command.ValidateLevel(FlrName, Command.uiDoc, out floors))
                 {
                     throw new Exception();
                 }
@@ -403,24 +406,58 @@ namespace CalcFittingsPlugin
 
                 progressWindow.UpdateProgress(33, "Определение узлов, превыщающих основное армирование.");
 
-                //Удаляем wall узлы
+                //Удаляем wall узлы и такие, которые покрываются основным армированием
                 DataTable needFit = FitDataTable.Copy();
                 needFit.Clear();
 
-                for(int i = 0; i < FitDataTable.Rows.Count; i++)
+                for (int i = 0; i < FitDataTable.Rows.Count; i++)
                 {
-                    if(FitDataTable.Rows[i][Tools.HeadersTemplate[0]].ToString() == "Wall")
-                    {
-                        continue;
-                    }
+                    DataRow row = FitDataTable.Rows[i];
 
-     
+                    bool isWall = row[Tools.HeadersTemplate[0]].ToString() == "Wall";
+                    bool isThin1 = Convert.ToDouble(row[Tools.HeadersTemplate[6]]) < MainFit;
+                    bool isThin2 = Convert.ToDouble(row[Tools.HeadersTemplate[7]]) < MainFit;
+                    bool isThin3 = Convert.ToDouble(row[Tools.HeadersTemplate[8]]) < MainFit;
+                    bool isThin4 = Convert.ToDouble(row[Tools.HeadersTemplate[9]]) < MainFit;
+
+                    bool shouldSkip = isWall || (isThin1 && isThin2 && isThin3 && isThin4);
+
+                    if (!shouldSkip)
+                    {
+                        DataRow newRow = needFit.NewRow();
+                        newRow.ItemArray = row.ItemArray; // Копируем все значения
+                        needFit.Rows.Add(newRow);
+                    }
                 }
 
-                //Если по итогу не осталось узлов, требующих армирование – не продолжаем расчет, так как рассчитывать банально не для чего
-                if(needFit.Rows.Count == 0)
+                List<DataTable> floorPoints = new List<DataTable>();
+                //Формируем для каждой плиты перекрытия ее узлы
+                if(floors != null)
                 {
-                    MessageBox.Show("Не найдено узлов, которые превышали бы основное армирование.", "Расчет", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    for(int i = 0; i < floors.Count; i++)
+                    {
+                        DataTable floorTable = needFit.Copy();
+                        floorTable.Clear();
+                        Command.GetNodeTable(floors[i], needFit, out floorTable);
+                        floorPoints.Add(floorTable);
+                    }
+                }
+
+
+                //Проверяем, есть ли узлы хотя бы для одной плиты
+                bool isntEmpty = false;
+                for(int i = 0; i < floorPoints.Count; i++)
+                {
+                    if(floorPoints[i].Rows.Count != 0)
+                    {
+                        isntEmpty = true;
+                        break;
+                    }
+                }
+
+                if(!isntEmpty)
+                {
+                    MessageBox.Show("Для плит перекрытия уровня '" + FlrName + "' не найдено узлов, превышающих основное армирование." , "Расчет", MessageBoxButton.OK, MessageBoxImage.Warning);
                     throw new Exception();
                 }
 
@@ -433,6 +470,7 @@ namespace CalcFittingsPlugin
                 await Task.Delay(1000); // Даем время увидеть 100%
 
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc));
+
             }
             catch
             {

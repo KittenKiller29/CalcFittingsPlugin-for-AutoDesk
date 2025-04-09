@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Data;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,12 +28,12 @@ namespace CalcFittingsPlugin
             return Result.Succeeded;
         }
 
-        public static bool ValidateLevel(string lvlName, UIDocument uiDoc)
+        public static bool ValidateLevel(string lvlName, UIDocument uiDoc, out List<Floor> _floors)
         {
             try
             {
                 Document doc = uiDoc.Document;
-
+                _floors = null;
                 // 1. Получаем уровень по имени
                 Level targetLevel = new FilteredElementCollector(doc)
                     .OfClass(typeof(Level))
@@ -54,6 +56,8 @@ namespace CalcFittingsPlugin
                     .Where(f => f.GetTypeId() != ElementId.InvalidElementId)
                     .ToList();
 
+                _floors = floors;
+
                 // 3. Проверяем количество плит
                 if (floors.Count == 0)
                 {
@@ -71,6 +75,8 @@ namespace CalcFittingsPlugin
                 if (view3D != null)
                 {
                     uiDoc.ActiveView = view3D;
+                    uiDoc.Selection.SetElementIds(floors.Select(f => f.Id).ToList());
+                    uiDoc.ShowElements(floors.Select(f => f.Id).ToList());
                 }
 
                 return true;
@@ -79,8 +85,150 @@ namespace CalcFittingsPlugin
             {
                 MessageBox.Show($"Ошибка при проверке уровня: {ex.Message}",
                               "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                _floors = null;
                 return false;
             }
+        }
+
+        public static void GetNodeTable(Floor floor, DataTable allFit, out DataTable thisFit)
+        {
+            thisFit = allFit.Copy();
+            thisFit.Clear();
+
+            Document doc = floor.Document;
+
+            // Получаем геометрию плиты
+            Options geomOptions = new Options();
+            geomOptions.ComputeReferences = true;
+            GeometryElement geomElem = floor.get_Geometry(geomOptions);
+
+            // Получаем верхнюю грань плиты
+            PlanarFace topFace = null;
+            double maxElevation = double.MinValue;
+
+            foreach (GeometryObject geomObj in geomElem)
+            {
+                if (geomObj is Solid solid)
+                {
+                    foreach (Face face in solid.Faces)
+                    {
+                        if (face is PlanarFace planarFace)
+                        {
+                            XYZ normal = planarFace.FaceNormal;
+
+                            // Проверяем, что это верхняя грань (нормаль направлена вверх)
+                            if (normal.Z > 0.9) // Близко к вертикали вверх
+                            {
+                                double currentElevation = planarFace.Origin.Z;
+                                if (currentElevation > maxElevation)
+                                {
+                                    maxElevation = currentElevation;
+                                    topFace = planarFace;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (topFace == null)
+            {
+                return; // Не нашли верхнюю грань
+            }
+
+            // Получаем контуры плиты (внешний и внутренние - отверстия)
+            IList<CurveLoop> boundaryLoops = topFace.GetEdgesAsCurveLoops();
+            if (boundaryLoops.Count == 0)
+            {
+                return;
+            }
+
+            // Внешний контур плиты (первый в списке)
+            CurveLoop outerBoundary = boundaryLoops[0];
+
+            // Получаем уровень плиты и его высоту
+            Level level = doc.GetElement(floor.LevelId) as Level;
+            double floorElevation = level.Elevation;
+
+            // Проверяем каждый узел на принадлежность плите
+            foreach (DataRow row in allFit.Rows)
+            {
+                try
+                {
+                    // Получаем координаты узла
+                    double x = Convert.ToDouble(row[Tools.HeadersTemplate[2]]);
+                    double y = Convert.ToDouble(row[Tools.HeadersTemplate[3]]);
+                    double z = Convert.ToDouble(row[Tools.HeadersTemplate[4]]);
+
+                    // 1. Проверяем высоту (Z-координата должна быть близка к высоте плиты)
+                    if (Math.Abs(z - floorElevation) > 0.1) // Допустимая погрешность 10 см
+                    {
+                        continue;
+                    }
+
+                    XYZ point = new XYZ(x, y, z);
+
+                    // 2. Проверяем, находится ли точка внутри внешнего контура
+                    if (!IsPointInsideCurveLoop(outerBoundary, point))
+                    {
+                        continue;
+                    }
+
+                    // 3. Проверяем, не попадает ли точка в отверстие
+                    bool isInsideHole = false;
+                    for (int i = 1; i < boundaryLoops.Count; i++)
+                    {
+                        if (IsPointInsideCurveLoop(boundaryLoops[i], point))
+                        {
+                            isInsideHole = true;
+                            break;
+                        }
+                    }
+
+                    if (!isInsideHole)
+                    {
+                        // Добавляем узел в таблицу
+                        DataRow newRow = thisFit.NewRow();
+                        newRow.ItemArray = row.ItemArray;
+                        thisFit.Rows.Add(newRow);
+                    }
+                }
+                catch
+                {
+                    // Пропускаем строки с ошибками
+                    continue;
+                }
+            }
+        }
+
+        // Улучшенный метод для проверки нахождения точки внутри многоугольника
+        private static bool IsPointInsideCurveLoop(CurveLoop loop, XYZ point)
+        {
+            // Преобразуем контур в список точек
+            List<XYZ> polygonPoints = new List<XYZ>();
+            foreach (Curve curve in loop)
+            {
+                polygonPoints.Add(curve.GetEndPoint(0));
+            }
+
+            // Алгоритм "ray casting" для проверки принадлежности точки многоугольнику
+            int n = polygonPoints.Count;
+            bool inside = false;
+
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                XYZ pi = polygonPoints[i];
+                XYZ pj = polygonPoints[j];
+
+                // Проверяем пересечение луча с ребром многоугольника
+                if (((pi.Y > point.Y) != (pj.Y > point.Y)) &&
+                    (point.X < (pj.X - pi.X) * (point.Y - pi.Y) / (pj.Y - pi.Y) + pi.X))
+                {
+                    inside = !inside;
+                }
+            }
+
+            return inside;
         }
     }
 }
