@@ -140,9 +140,9 @@
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                <GridViewColumn Header="Диаметр арматуры, мм." Width="152" DisplayMemberBinding="{Binding Diam}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                <GridViewColumn Header="Шаг арматуры, мм." Width="152" DisplayMemberBinding="{Binding Step}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                <GridViewColumn Header="Цена, руб." Width="152" DisplayMemberBinding="{Binding Cost}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                <GridViewColumn Header="Длина всей арматуры, мм." Width="152" DisplayMemberBinding="{Binding Length}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                <GridViewColumn Header="Длина обрезков, мм." Width="152" DisplayMemberBinding="{Binding Cut}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
+                                <GridViewColumn Header="Общая цена, руб." Width="152" DisplayMemberBinding="{Binding Cost}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
                             </GridView>
                         </ListView.View>
                     </ListView>

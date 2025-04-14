@@ -405,6 +405,7 @@ namespace CalcFittingsPlugin
                 }
 
                 progressWindow.UpdateProgress(33, "Определение узлов, превыщающих основное армирование.");
+                await Task.Delay(1000);
 
                 //Удаляем wall узлы и такие, которые покрываются основным армированием
                 DataTable needFit = FitDataTable.Copy();
@@ -430,50 +431,94 @@ namespace CalcFittingsPlugin
                     }
                 }
 
+                var optimizer = new ReinforcementOptimizer
+                {
+                    Openings = ReinforcementOptimizer.GetOpeningsFromRevit(floors),
+                    BasicReinforcement = new[] { MainFit, MainFit, MainFit, MainFit },
+                    StandardLengths = Length.AsEnumerable()
+                    .Select(r => Convert.ToDouble(r["Length"]))
+                    .ToList(),
+                    AvailableRebars = DiamStep.AsEnumerable()
+                    .GroupBy(r => Convert.ToInt32(r["Diam"]))
+                    .Select(g => new RebarConfig
+                    {
+                        Diameter = g.Key,
+                        AvailableSpacings = g.Select(r => Convert.ToDouble(r["Step"])).ToList(),
+                        PricePerMeter = DiamCost.AsEnumerable()
+                        .FirstOrDefault(r => Convert.ToInt32(r["Diam"]) == g.Key)?["Cost"] != null
+                           ? Convert.ToDouble(DiamCost.AsEnumerable()
+                            .First(r => Convert.ToInt32(r["Diam"]) == g.Key)["Cost"]) : 0,
+                    })
+                    .Where(r => r.PricePerMeter > 0)
+                    .ToList()
+                };
+
                 List<DataTable> floorPoints = new List<DataTable>();
+                var slabsNodes = new List<List<Node>>();
                 //Формируем для каждой плиты перекрытия ее узлы
-                if(floors != null)
+                if (floors != null)
                 {
                     for(int i = 0; i < floors.Count; i++)
                     {
                         DataTable floorTable = needFit.Copy();
                         floorTable.Clear();
                         Command.GetNodeTable(floors[i], needFit, out floorTable);
-                        floorPoints.Add(floorTable);
+
+                        slabsNodes.Add(floorTable.AsEnumerable()
+                            .Select(r => new Node
+                            {
+                                Type = r[Tools.HeadersTemplate[0]].ToString(),
+                                Number = Convert.ToInt32(r[Tools.HeadersTemplate[1]]),
+                                X = Convert.ToDouble(r[Tools.HeadersTemplate[2]]),
+                                Y = Convert.ToDouble(r[Tools.HeadersTemplate[3]]),
+                                ZCenter = Convert.ToDouble(r[Tools.HeadersTemplate[4]]),
+                                ZMin = Convert.ToDouble(r[Tools.HeadersTemplate[5]]),
+                                As1X = Convert.ToDouble(r[Tools.HeadersTemplate[6]]),
+                                As2X = Convert.ToDouble(r[Tools.HeadersTemplate[7]]),
+                                As3Y = Convert.ToDouble(r[Tools.HeadersTemplate[8]]),
+                                As4Y = Convert.ToDouble(r[Tools.HeadersTemplate[9]]),
+                                SlabId = i
+                            })
+                            .ToList());
                     }
                 }
 
-
-                //Проверяем, есть ли узлы хотя бы для одной плиты
-                bool isntEmpty = false;
-                for(int i = 0; i < floorPoints.Count; i++)
-                {
-                    if(floorPoints[i].Rows.Count != 0)
-                    {
-                        isntEmpty = true;
-                        break;
-                    }
-                }
-
-                if(!isntEmpty)
+                if(!slabsNodes.Any(sn => sn.Count > 0))
                 {
                     MessageBox.Show("Для плит перекрытия уровня '" + FlrName + "' не найдено узлов, превышающих основное армирование." , "Расчет", MessageBoxButton.OK, MessageBoxImage.Warning);
                     throw new Exception();
                 }
 
-                progressWindow.UpdateProgress(66, "Расчет возможных вариантов зон дополнительного армирования.");
+                progressWindow.UpdateProgress(66, "Расчет вариантов зон дополнительного армирования.");
+                await Task.Delay(1000);
 
 
-
+                //Запускаем расчетный алгоритм
+                var bestSolutions = optimizer.FindBestSolutions(slabsNodes, NumOfSol);
 
                 progressWindow.UpdateProgress(100, "Завершено");
                 await Task.Delay(1000); // Даем время увидеть 100%
 
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Получено решений " + bestSolutions.Count.ToString()));
+
+                foreach (var solution in bestSolutions)
+                {
+                    ConsoleLog.AppendText($"Решение стоимостью {solution.TotalCost}");
+                    /*foreach (var zone in solution.Zones)
+                    {
+                        ConsoleLog.AppendText($"Зона: {zone.Boundary.Width}x{zone.Boundary.Height}, " +
+                                      $"Арматура: Ø{zone.Rebar.Diameter}/{zone.Spacing}, " +
+                                      $"Стоимость: {zone.TotalCost}");
+                    }*/
+                }
+
+
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc));
 
             }
-            catch
+            catch(Exception ex)
             {
+                MessageBox.Show(ex.Message);
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcErr));
             }
             finally
