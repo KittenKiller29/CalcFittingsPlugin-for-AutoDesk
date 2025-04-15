@@ -312,8 +312,8 @@ namespace CalcFittingsPlugin
         public double[] BasicReinforcement { get; set; }
         public List<Opening> Openings { get; set; } = new List<Opening>();
         public int PopulationSize { get; set; } = 50;
-        public int Generations { get; set; } = 100;
-        public double MutationRate { get; set; } = 0.3;
+        public int Generations { get; set; } = 800;
+        public double MutationRate { get; set; } = 0.2;
         public int EliteCount { get; set; } = 5;
         private static readonly Random Random = new Random();
 
@@ -487,13 +487,17 @@ namespace CalcFittingsPlugin
                 return null;
 
             var boundary = CalculateBoundary(nodes);
-            double requiredAs = nodes.Max(n => Math.Max(Math.Max(n.As1X, n.As2X), Math.Max(n.As3Y, n.As4Y)));
+
+            // Конвертируем требуемое армирование из см²/м в мм²/м
+            double requiredAs = nodes.Max(n => Math.Max(Math.Max(n.As1X, n.As2X),
+                                      Math.Max(n.As3Y, n.As4Y))) * 100; // 1 см² = 100 мм²
 
             var bestConfig = AvailableRebars
                 .SelectMany(r => r.AvailableSpacings.Select(s => new {
                     Rebar = r,
-                    Spacing = s,
-                    Area = Math.PI * r.Diameter * r.Diameter / 4 * (1000 / s)
+                    Spacing = s, // в мм (как введено пользователем)
+                                 // Площадь арматуры на метр (мм²/м)
+                Area = (Math.PI * r.Diameter * r.Diameter / 4) * (1000 / s)
                 }))
                 .Where(x => x.Area >= requiredAs)
                 .OrderBy(x => x.Rebar.PricePerMeter)
@@ -502,16 +506,29 @@ namespace CalcFittingsPlugin
             if (bestConfig == null)
                 return null;
 
-            double length = StandardLengths.First() / 1000;
-            double xBars = Math.Ceiling((boundary.Height / bestConfig.Spacing) / 1000);
-            double yBars = Math.Ceiling((boundary.Width / bestConfig.Spacing) / 1000);
+            // Длина стержня в метрах (пользователь вводит мм, поэтому делим на 1000)
+            double length = StandardLengths.First() / 1000.0;
+
+            // Размеры зоны в метрах (boundary уже в метрах)
+            double width = boundary.Width;
+            double height = boundary.Height;
+
+            // Шаг арматуры в метрах
+            double spacing = bestConfig.Spacing / 1000.0;
+
+            // Количество стержней
+            double xBars = Math.Ceiling(height / spacing);
+            double yBars = Math.Ceiling(width / spacing);
+
+            // Стоимость (цена за метр * количество стержней * длину стержня)
             double totalCost = (xBars + yBars) * length * bestConfig.Rebar.PricePerMeter;
 
             return new ZoneSolution
             {
                 Nodes = nodes,
                 Rebar = bestConfig.Rebar,
-                Spacing = bestConfig.Spacing,
+                Spacing = bestConfig.Spacing, // сохраняем в мм для отображения
+                StandardLength = StandardLengths.First(), // в мм
                 Boundary = boundary,
                 TotalCost = totalCost
             };

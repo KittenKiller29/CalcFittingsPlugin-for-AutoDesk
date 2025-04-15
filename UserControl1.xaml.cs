@@ -503,7 +503,9 @@ namespace CalcFittingsPlugin
 
                 foreach (var solution in bestSolutions)
                 {
-                    ConsoleLog.AppendText($"Решение стоимостью {solution.TotalCost}");
+                    ConsoleLog.AppendText(Tools.CreateLogMessage("Решение стоимостью "+ solution.TotalCost.ToString()));
+                    ConsoleLog.AppendText(Tools.CreateLogMessage("Всего зон " + solution.Zones.Count.ToString()));
+                    //ConsoleLog.AppendText(Tools.CreateLogMessage("Длина арматуры " + solution.));
                     /*foreach (var zone in solution.Zones)
                     {
                         ConsoleLog.AppendText($"Зона: {zone.Boundary.Width}x{zone.Boundary.Height}, " +
