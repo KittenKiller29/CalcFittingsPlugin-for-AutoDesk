@@ -505,6 +505,12 @@ namespace CalcFittingsPlugin
                 {
                     ConsoleLog.AppendText(Tools.CreateLogMessage("Решение стоимостью "+ solution.TotalCost.ToString()));
                     ConsoleLog.AppendText(Tools.CreateLogMessage("Всего зон " + solution.Zones.Count.ToString()));
+                    double length = 0;
+                    foreach (var zone in solution.Zones)
+                    {
+                        length += zone.TotalLength;
+                    }
+                    ConsoleLog.AppendText(Tools.CreateLogMessage("Общая длина арматуры " + length));
                     //ConsoleLog.AppendText(Tools.CreateLogMessage("Длина арматуры " + solution.));
                     /*foreach (var zone in solution.Zones)
                     {

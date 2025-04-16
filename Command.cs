@@ -233,18 +233,18 @@ namespace CalcFittingsPlugin
         }
     }
 
-    // Классы для генетического алгоритма
     public class RebarConfig
     {
-        public double Diameter { get; set; }
-        public List<double> AvailableSpacings { get; set; }
-        public double PricePerMeter { get; set; }
+        public double Diameter { get; set; } // Диаметр арматуры (мм)
+        public List<double> AvailableSpacings { get; set; } // Доступные шаги арматуры (мм)
+        public double PricePerMeter { get; set; } // Цена за метр арматуры
     }
 
     public class Opening
     {
-        public Rectangle Boundary { get; set; }
-        public int SlabId { get; set; }
+        public List<XYZ> Polygon { get; set; } // Многоугольник отверстия
+        public int SlabId { get; set; } // ID плиты, к которой относится отверстие
+        public Rectangle Boundary { get; set; } // Ограничивающий прямоугольник
     }
 
     public class Node
@@ -255,23 +255,33 @@ namespace CalcFittingsPlugin
         public double Y { get; set; }
         public double ZCenter { get; set; }
         public double ZMin { get; set; }
-        public double As1X { get; set; }
+        public double As1X { get; set; } // Требуемое армирование (см²/м)
         public double As2X { get; set; }
         public double As3Y { get; set; }
         public double As4Y { get; set; }
         public int SlabId { get; set; }
+        public Rectangle Boundary { get; set; }
+        public int ClusterVersion { get; set; }
+        public double MedianLoad { get; set; }
+
+        public void UpdateBoundary(Rectangle newBoundary)
+        {
+            this.Boundary = newBoundary;
+            this.ClusterVersion++;
+        }
     }
 
     public class ReinforcementSolution
     {
         public List<ZoneSolution> Zones { get; set; }
         public double TotalCost => Zones.Sum(z => z.TotalCost);
+        public double TotalRebarLength => Zones.Sum(z => z.TotalLength);
 
-        public ReinforcementSolution ShallowCopy(ReinforcementSolution source)
+        public ReinforcementSolution ShallowCopy()
         {
             return new ReinforcementSolution
             {
-                Zones = new List<ZoneSolution>(source.Zones)
+                Zones = new List<ZoneSolution>(this.Zones)
             };
         }
     }
@@ -280,10 +290,13 @@ namespace CalcFittingsPlugin
     {
         public List<Node> Nodes { get; set; }
         public RebarConfig Rebar { get; set; }
-        public double Spacing { get; set; }
-        public double StandardLength { get; set; }
+        public double Spacing { get; set; } // Шаг арматуры (мм)
+        public double StandardLength { get; set; } // Длина стержней (мм)
         public Rectangle Boundary { get; set; }
         public double TotalCost { get; set; }
+        public double TotalLength { get; set; } // Общая длина арматуры (м)
+        public double AreaX { get; set; } // Площадь арматуры в X направлении (мм²/м)
+        public double AreaY { get; set; } // Площадь арматуры в Y направлении (мм²/м)
     }
 
     public class Rectangle
@@ -302,6 +315,11 @@ namespace CalcFittingsPlugin
             Width = width;
             Height = height;
         }
+
+        public bool Contains(double x, double y)
+        {
+            return x >= X && x <= X + Width && y >= Y && y <= Y + Height;
+        }
     }
 
     public class ReinforcementOptimizer
@@ -313,10 +331,784 @@ namespace CalcFittingsPlugin
         public List<Opening> Openings { get; set; } = new List<Opening>();
         public int PopulationSize { get; set; } = 50;
         public int Generations { get; set; } = 800;
-        public double MutationRate { get; set; } = 0.2;
+        public double MutationRate { get; set; } = 0.4;
         public int EliteCount { get; set; } = 5;
+        public double MinRebarPerDirection { get; set; } = 2; // Минимум 2 стержня в каждом направлении
+
         private static readonly Random Random = new Random();
 
+        // Основной метод оптимизации
+        public List<ReinforcementSolution> FindBestSolutions(List<List<Node>> slabsNodes, int solutionCount)
+        {
+            // 1. Инициализация популяции
+            var population = InitializePopulation(slabsNodes);
+
+            // 2. Эволюционный процесс
+            for (int gen = 0; gen < Generations; gen++)
+            {
+                population = EvolvePopulation(population, slabsNodes);
+
+                // Гарантируем покрытие всех узлов в каждом решении
+                foreach (var solution in population)
+                {
+                    EnsureFullCoverage(solution, slabsNodes);
+                }
+
+                Debug.WriteLine($"Generation {gen}: Best cost = {population[0].TotalCost}");
+            }
+
+            // 3. Возврат лучших уникальных решений
+            return GetUniqueSolutions(population, solutionCount);
+        }
+
+        private List<ReinforcementSolution> InitializePopulation(List<List<Node>> slabsNodes)
+        {
+            var population = new List<ReinforcementSolution>();
+
+            for (int i = 0; i < PopulationSize; i++)
+            {
+                var solution = new ReinforcementSolution { Zones = new List<ZoneSolution>() };
+
+                foreach (var nodes in slabsNodes.Where(n => n?.Count > 0))
+                {
+                    List<List<Node>> clusters;
+                    switch (i % 3)
+                    {
+                        case 0:
+                            clusters = ClusterByProximity(nodes, 2.0);
+                            break;
+                        case 1:
+                            clusters = ClusterByGrid(nodes, 3.0);
+                            break;
+                        default:
+                            clusters = ClusterByLoad(nodes);
+                            break;
+                    }
+
+                    clusters = OptimizeZoneShapes(clusters, Openings);
+
+                    foreach (var cluster in clusters)
+                    {
+                        var zone = OptimizeZone(cluster);
+                        if (zone != null && IsValidZone(zone))
+                        {
+                            solution.Zones.Add(zone);
+                        }
+                    }
+                }
+
+                population.Add(solution);
+            }
+
+            return population;
+        }
+
+        private bool IsValidZone(ZoneSolution zone)
+        {
+            // Проверка минимального количества стержней в каждом направлении
+            double xBars = Math.Ceiling(zone.Boundary.Height / (zone.Spacing / 1000));
+            double yBars = Math.Ceiling(zone.Boundary.Width / (zone.Spacing / 1000));
+
+            return xBars >= MinRebarPerDirection && yBars >= MinRebarPerDirection;
+        }
+
+        private List<ReinforcementSolution> EvolvePopulation(List<ReinforcementSolution> population, List<List<Node>> slabsNodes)
+        {
+            // 1. Оценка и сортировка
+            var evaluated = population
+                .Where(s => s != null && s.Zones != null)
+                .OrderBy(s => s.TotalCost)
+                .ToList();
+
+            // 2. Отбор элитных решений
+            var newPopulation = evaluated.Take(EliteCount).ToList();
+
+            // 3. Генерация потомков
+            while (newPopulation.Count < PopulationSize)
+            {
+                var parent1 = SelectParent(evaluated);
+                var parent2 = SelectParent(evaluated);
+
+                var offspring = Crossover(parent1, parent2, slabsNodes);
+                offspring = Mutate(offspring, slabsNodes);
+
+                if (offspring?.Zones?.Count > 0)
+                    newPopulation.Add(offspring);
+            }
+
+            return newPopulation;
+        }
+
+        private ReinforcementSolution SelectParent(List<ReinforcementSolution> population)
+        {
+            int tournamentSize = Math.Min(5, population.Count);
+            var candidates = population
+                .OrderBy(x => Random.Next())
+                .Take(tournamentSize)
+                .OrderBy(s => s.TotalCost)
+                .ToList();
+
+            return candidates.First();
+        }
+
+        private ReinforcementSolution Crossover(ReinforcementSolution parent1, ReinforcementSolution parent2, List<List<Node>> slabsNodes)
+        {
+            var child = new ReinforcementSolution { Zones = new List<ZoneSolution>() };
+
+            for (int i = 0; i < slabsNodes.Count; i++)
+            {
+                if (Random.NextDouble() < 0.5)
+                    child.Zones.AddRange(parent1.Zones.Where(z => z.Nodes[0].SlabId == i));
+                else
+                    child.Zones.AddRange(parent2.Zones.Where(z => z.Nodes[0].SlabId == i));
+            }
+
+            return child;
+        }
+
+        private ReinforcementSolution Mutate(ReinforcementSolution solution, List<List<Node>> slabsNodes)
+        {
+            var mutated = solution.ShallowCopy();
+
+            if (Random.NextDouble() > MutationRate || mutated.Zones.Count == 0)
+                return mutated;
+
+            int zoneIndex = Random.Next(mutated.Zones.Count);
+            var zone = mutated.Zones[zoneIndex];
+
+            switch (Random.Next(3))
+            {
+                case 0: // Изменение размеров зоны
+                    mutated.Zones[zoneIndex] = ResizeZone(zone);
+                    break;
+
+                case 1: // Разделение зоны
+                    mutated.Zones.RemoveAt(zoneIndex);
+                    var split = SplitCluster(zone.Nodes);
+                    mutated.Zones.AddRange(split.Select(OptimizeZone).Where(z => z != null && IsValidZone(z)));
+                    break;
+
+                case 2: // Изменение типа арматуры
+                    var newRebar = GetRandomRebarConfig();
+                    if (newRebar != null)
+                    {
+                        var newZone = CreateZoneSolution(zone.Nodes, zone.Boundary, newRebar);
+                        if (newZone != null && IsValidZone(newZone))
+                        {
+                            mutated.Zones[zoneIndex] = newZone;
+                        }
+                    }
+                    break;
+            }
+
+            return mutated;
+        }
+
+        private RebarConfig GetRandomRebarConfig()
+        {
+            if (AvailableRebars == null || AvailableRebars.Count == 0)
+                return null;
+
+            return AvailableRebars[Random.Next(AvailableRebars.Count)];
+        }
+
+        private ZoneSolution ResizeZone(ZoneSolution zone)
+        {
+            Rectangle bestBoundary = zone.Boundary;
+            double minCost = zone.TotalCost;
+
+            // Тестируем 5 вариантов изменения размера
+            for (int i = 0; i < 5; i++)
+            {
+                double expand = (Random.NextDouble() * 2) - 0.5; // [-0.5, 1.5]
+
+                var newBoundary = new Rectangle(
+                    zone.Boundary.X - expand / 2,
+                    zone.Boundary.Y - expand / 2,
+                    zone.Boundary.Width + expand,
+                    zone.Boundary.Height + expand
+                );
+
+                // Проверяем пересечение с отверстиями
+                if (Openings.Any(o => RectanglesIntersect(newBoundary, o.Boundary)))
+                    continue;
+
+                var testSolution = CreateZoneSolution(zone.Nodes, newBoundary, zone.Rebar);
+                if (testSolution != null && testSolution.TotalCost < minCost)
+                {
+                    minCost = testSolution.TotalCost;
+                    bestBoundary = newBoundary;
+                }
+            }
+
+            return CreateZoneSolution(zone.Nodes, bestBoundary, zone.Rebar);
+        }
+
+        private List<List<Node>> SplitCluster(List<Node> cluster)
+        {
+            if (cluster.Count <= 3) // Не разделяем маленькие кластеры
+                return new List<List<Node>> { cluster };
+
+            // Разделяем по координате X или Y
+            if (Random.NextDouble() < 0.5)
+            {
+                var sorted = cluster.OrderBy(n => n.X).ToList();
+                int mid = sorted.Count / 2;
+                return new List<List<Node>> { sorted.Take(mid).ToList(), sorted.Skip(mid).ToList() };
+            }
+            else
+            {
+                var sorted = cluster.OrderBy(n => n.Y).ToList();
+                int mid = sorted.Count / 2;
+                return new List<List<Node>> { sorted.Take(mid).ToList(), sorted.Skip(mid).ToList() };
+            }
+        }
+
+        private List<ReinforcementSolution> GetUniqueSolutions(List<ReinforcementSolution> solutions, int count)
+        {
+            return solutions
+                .GroupBy(s => string.Join("|", s.Zones
+                    .OrderBy(z => z.Boundary.X)
+                    .ThenBy(z => z.Boundary.Y)
+                    .Select(z => $"{z.Rebar.Diameter}@{z.Spacing}:{z.Boundary.Width}x{z.Boundary.Height}")))
+                .Select(g => g.First())
+                .OrderBy(s => s.TotalCost)
+                .Take(count)
+                .ToList();
+        }
+
+        #region Методы кластеризации
+        private List<List<Node>> ClusterByProximity(List<Node> nodes, double maxDistance)
+        {
+            var clusters = new List<List<Node>>();
+            var visited = new HashSet<Node>();
+
+            foreach (var node in nodes.OrderBy(n => n.X))
+            {
+                if (visited.Contains(node)) continue;
+
+                var cluster = new List<Node>();
+                var queue = new Queue<Node>();
+                queue.Enqueue(node);
+                visited.Add(node);
+
+                while (queue.Count > 0)
+                {
+                    var current = queue.Dequeue();
+                    cluster.Add(current);
+
+                    var neighbors = nodes
+                        .Where(n => !visited.Contains(n) && Distance(current, n) <= maxDistance)
+                        .ToList();
+
+                    foreach (var neighbor in neighbors)
+                    {
+                        visited.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+
+                if (cluster.Count > 0)
+                    clusters.Add(cluster);
+            }
+
+            return clusters;
+        }
+
+        private List<List<Node>> ClusterByGrid(List<Node> nodes, double gridSize)
+        {
+            var grid = new Dictionary<(int, int), List<Node>>();
+
+            foreach (var node in nodes)
+            {
+                int xCell = (int)(node.X / gridSize);
+                int yCell = (int)(node.Y / gridSize);
+                var key = (xCell, yCell);
+
+                if (!grid.ContainsKey(key)) grid[key] = new List<Node>();
+                grid[key].Add(node);
+            }
+
+            return grid.Values.Where(c => c.Count >= 3).ToList();
+        }
+
+        private List<List<Node>> ClusterByLoad(List<Node> nodes)
+        {
+            if (nodes.Count == 0)
+                return new List<List<Node>>();
+
+            // 1. Пространственная кластеризация
+            var spatialClusters = ClusterByProximity(nodes, maxDistance: 2.0);
+
+            // 2. Разделение по нагрузке
+            var result = new List<List<Node>>();
+            foreach (var cluster in spatialClusters)
+            {
+                if (cluster.Count == 0) continue;
+
+                double medianLoad = CalculateMedianLoad(cluster);
+
+                var highLoadNodes = cluster
+                    .Where(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max() > medianLoad)
+                    .ToList();
+
+                var lowLoadNodes = cluster.Except(highLoadNodes).ToList();
+
+                if (highLoadNodes.Count > 0) result.Add(highLoadNodes);
+                if (lowLoadNodes.Count > 0) result.Add(lowLoadNodes);
+            }
+
+            // 3. Объединение мелких кластеров
+            return MergeSmallClusters(result, minSize: 3);
+        }
+
+        private double CalculateMedianLoad(List<Node> nodes)
+        {
+            var loads = nodes
+                .Select(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max())
+                .OrderBy(x => x)
+                .ToList();
+
+            int midIndex = loads.Count / 2;
+            return (loads.Count % 2 != 0) ?
+                loads[midIndex] :
+                (loads[midIndex - 1] + loads[midIndex]) / 2.0;
+        }
+
+        private List<List<Node>> MergeSmallClusters(List<List<Node>> clusters, int minSize)
+        {
+            var merged = new List<List<Node>>();
+            var largeClusters = clusters.Where(c => c.Count >= minSize).ToList();
+            var smallClusters = clusters.Where(c => c.Count < minSize).ToList();
+
+            merged.AddRange(largeClusters);
+
+            foreach (var smallCluster in smallClusters)
+            {
+                var nearestCluster = FindNearestCluster(smallCluster, merged);
+
+                if (nearestCluster != null && ShouldMerge(nearestCluster, smallCluster))
+                {
+                    var combinedCluster = nearestCluster.Concat(smallCluster).ToList();
+                    var updatedCluster = RecalculateCluster(combinedCluster);
+                    merged.Remove(nearestCluster);
+                    merged.Add(updatedCluster);
+                }
+                else
+                {
+                    merged.Add(RecalculateCluster(smallCluster));
+                }
+            }
+
+            return merged;
+        }
+
+        private bool ShouldMerge(List<Node> cluster1, List<Node> cluster2)
+        {
+            double loadDiff = Math.Abs(
+                cluster1[0].MedianLoad - cluster2[0].MedianLoad);
+            return loadDiff < 1.0;
+        }
+
+        private List<Node> RecalculateCluster(List<Node> cluster)
+        {
+            if (cluster == null || cluster.Count == 0)
+                return cluster;
+
+            var newBoundary = CalculateBoundary(cluster);
+            double medianLoad = CalculateMedianLoad(cluster);
+
+            foreach (var node in cluster)
+            {
+                node.Boundary = newBoundary;
+                node.ClusterVersion++;
+                node.MedianLoad = medianLoad;
+            }
+
+            return cluster;
+        }
+
+        private List<Node> FindNearestCluster(List<Node> cluster, List<List<Node>> existingClusters)
+        {
+            if (existingClusters == null || existingClusters.Count == 0)
+                return null;
+
+            double centerX = cluster.Average(n => n.X);
+            double centerY = cluster.Average(n => n.Y);
+
+            var nearest = existingClusters
+                .Select(c => new {
+                    Cluster = c,
+                    Distance = Math.Sqrt(
+                        Math.Pow(c.Average(n => n.X) - centerX, 2) +
+                        Math.Pow(c.Average(n => n.Y) - centerY, 2))
+                })
+                .OrderBy(x => x.Distance)
+                .FirstOrDefault();
+
+            return nearest?.Distance <= 3.0 ? nearest.Cluster : null;
+        }
+
+        private List<List<Node>> OptimizeZoneShapes(List<List<Node>> clusters, List<Opening> openings)
+        {
+            var optimized = new List<List<Node>>();
+
+            foreach (var cluster in clusters)
+            {
+                var boundary = CalculateBoundary(cluster);
+                var subClusters = SplitClusterAroundOpenings(cluster, boundary, openings);
+
+                foreach (var subCluster in subClusters)
+                {
+                    var optimizedZone = FindOptimalShape(subCluster, openings);
+                    optimized.Add(optimizedZone.Nodes);
+                }
+            }
+
+            return optimized;
+        }
+
+        private List<List<Node>> SplitClusterAroundOpenings(List<Node> cluster, Rectangle boundary, List<Opening> openings)
+        {
+            var intersecting = openings
+                .Where(o => RectanglesIntersect(boundary, o.Boundary))
+                .Select(o => o.Boundary)
+                .ToList();
+
+            if (!intersecting.Any())
+                return new List<List<Node>> { cluster };
+
+            var allowedAreas = CalculateAllowedAreas(boundary, intersecting);
+            var result = new List<List<Node>>();
+
+            foreach (var area in allowedAreas)
+            {
+                var nodesInArea = cluster
+                    .Where(n => area.Contains(n.X, n.Y))
+                    .ToList();
+
+                if (nodesInArea.Count > 0)
+                    result.Add(nodesInArea);
+            }
+
+            return result;
+        }
+
+        private List<Rectangle> CalculateAllowedAreas(Rectangle boundary, List<Rectangle> holes)
+        {
+            var allowedAreas = new List<Rectangle> { boundary };
+
+            foreach (var hole in holes.OrderBy(h => h.X))
+            {
+                var newAreas = new List<Rectangle>();
+
+                foreach (var area in allowedAreas)
+                {
+                    if (!RectanglesIntersect(area, hole))
+                    {
+                        newAreas.Add(area);
+                        continue;
+                    }
+
+                    newAreas.AddRange(SplitRectangleAroundHole(area, hole));
+                }
+
+                allowedAreas = newAreas
+                    .Where(a => a.Width > 0.1 && a.Height > 0.1)
+                    .ToList();
+            }
+
+            return allowedAreas;
+        }
+
+        private List<Rectangle> SplitRectangleAroundHole(Rectangle original, Rectangle hole)
+        {
+            var result = new List<Rectangle>();
+
+            if (hole.X > original.X)
+            {
+                result.Add(new Rectangle(
+                    original.X,
+                    original.Y,
+                    hole.X - original.X,
+                    original.Height
+                ));
+            }
+
+            if (hole.X + hole.Width < original.X + original.Width)
+            {
+                result.Add(new Rectangle(
+                    hole.X + hole.Width,
+                    original.Y,
+                    original.X + original.Width - (hole.X + hole.Width),
+                    original.Height
+                ));
+            }
+
+            if (hole.Y > original.Y)
+            {
+                result.Add(new Rectangle(
+                    Math.Max(original.X, hole.X),
+                    original.Y,
+                    Math.Min(original.X + original.Width, hole.X + hole.Width) -
+                    Math.Max(original.X, hole.X),
+                    hole.Y - original.Y
+                ));
+            }
+
+            if (hole.Y + hole.Height < original.Y + original.Height)
+            {
+                result.Add(new Rectangle(
+                    Math.Max(original.X, hole.X),
+                    hole.Y + hole.Height,
+                    Math.Min(original.X + original.Width, hole.X + hole.Width) -
+                    Math.Max(original.X, hole.X),
+                    original.Y + original.Height - (hole.Y + hole.Height)
+                ));
+            }
+
+            return result.Where(r => r.Width > 0.1 && r.Height > 0.1).ToList();
+        }
+
+        private ZoneSolution FindOptimalShape(List<Node> nodes, List<Opening> openings)
+        {
+            var boundary = CalculateBoundary(nodes);
+            ZoneSolution bestSolution = CreateZoneSolution(nodes, boundary);
+
+            // Тестируем варианты с разными отступами
+            for (double padding = 0.5; padding <= 1.5; padding += 0.5)
+            {
+                var testBoundary = new Rectangle(
+                    boundary.X - padding,
+                    boundary.Y - padding,
+                    boundary.Width + 2 * padding,
+                    boundary.Height + 2 * padding
+                );
+
+                if (openings.Any(o => RectanglesIntersect(testBoundary, o.Boundary)))
+                    continue;
+
+                var testSolution = CreateZoneSolution(nodes, testBoundary);
+                if (testSolution != null && testSolution.TotalCost < bestSolution.TotalCost)
+                    bestSolution = testSolution;
+            }
+
+            return bestSolution;
+        }
+        #endregion
+
+        #region Методы работы с зонами армирования
+        private void EnsureFullCoverage(ReinforcementSolution solution, List<List<Node>> slabsNodes)
+        {
+            foreach (var nodes in slabsNodes)
+            {
+                var uncoveredNodes = GetUncoveredNodes(nodes, solution.Zones);
+                if (uncoveredNodes.Count == 0)
+                    continue;
+
+                // Создаем дополнительные зоны для непокрытых узлов
+                var newClusters = ClusterByProximity(uncoveredNodes, maxDistance: 1.5);
+                foreach (var cluster in newClusters)
+                {
+                    var zone = OptimizeZone(cluster);
+                    if (zone != null && IsValidZone(zone))
+                    {
+                        solution.Zones.Add(zone);
+                    }
+                }
+            }
+        }
+
+        private List<Node> GetUncoveredNodes(List<Node> allNodes, List<ZoneSolution> zones)
+        {
+            var coveredNodes = new HashSet<Node>();
+            foreach (var zone in zones)
+            {
+                foreach (var node in zone.Nodes)
+                {
+                    coveredNodes.Add(node);
+                }
+            }
+            return allNodes.Where(n => !coveredNodes.Contains(n)).ToList();
+        }
+
+        private ZoneSolution OptimizeZone(List<Node> nodes)
+        {
+            if (nodes == null || nodes.Count == 0)
+                return null;
+
+            var boundary = CalculateBoundary(nodes);
+
+            // Убедимся, что зона не пересекается с отверстиями
+            if (Openings.Any(o => RectanglesIntersect(boundary, o.Boundary)))
+            {
+                // Если пересекается, разбиваем кластер на меньшие части
+                var subClusters = SplitClusterAroundOpenings(nodes, boundary, Openings);
+                if (subClusters.Count == 0)
+                    return null;
+
+                // Оптимизируем каждую подзону
+                var bestZone = subClusters
+                    .Select(OptimizeZone)
+                    .Where(z => z != null)
+                    .OrderBy(z => z.TotalCost)
+                    .FirstOrDefault();
+
+                return bestZone;
+            }
+
+            return CreateZoneSolution(nodes, boundary);
+        }
+
+        private ZoneSolution CreateZoneSolution(List<Node> nodes, Rectangle boundary, RebarConfig specificRebar = null)
+        {
+            if (nodes == null || nodes.Count == 0 || boundary.Width <= 0 || boundary.Height <= 0)
+                return null;
+
+            // Конвертируем требуемое армирование из см²/м в мм²/м
+            double requiredAs = nodes
+                .Select(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max())
+                .Max() * 100;
+
+            // 1. Находим все возможные варианты арматуры, удовлетворяющие требованиям
+            var possibleConfigs = new List<ZoneSolution>();
+
+            // Перебираем все доступные длины стержней
+            foreach (var length in StandardLengths)
+            {
+                // Перебираем все доступные конфигурации арматуры
+                var rebarOptions = specificRebar != null
+                    ? new List<RebarConfig> { specificRebar }
+                    : AvailableRebars;
+
+                foreach (var rebar in rebarOptions)
+                {
+                    foreach (var spacing in rebar.AvailableSpacings)
+                    {
+                        double areaPerMeter = Math.PI * rebar.Diameter * rebar.Diameter / 4 * (1000 / spacing);
+                        if (areaPerMeter < requiredAs)
+                            continue;
+
+                        // Рассчитываем количество стержней в каждом направлении
+                        double xBars = Math.Ceiling(boundary.Height / (spacing / 1000));
+                        double yBars = Math.Ceiling(boundary.Width / (spacing / 1000));
+
+                        // Проверяем минимальное количество стержней
+                        if (xBars < MinRebarPerDirection || yBars < MinRebarPerDirection)
+                            continue;
+
+                        // Рассчитываем общую стоимость
+                        double totalLength = (xBars + yBars) * (length / 1000);
+                        double totalCost = totalLength * rebar.PricePerMeter;
+
+                        possibleConfigs.Add(new ZoneSolution
+                        {
+                            Nodes = nodes,
+                            Rebar = rebar,
+                            Spacing = spacing,
+                            StandardLength = length,
+                            Boundary = boundary,
+                            TotalCost = totalCost,
+                            TotalLength = totalLength,
+                            AreaX = areaPerMeter,
+                            AreaY = areaPerMeter
+                        });
+                    }
+                }
+            }
+
+            // 2. Если нашли подходящие варианты - возвращаем самый дешевый
+            if (possibleConfigs.Count > 0)
+                return possibleConfigs.OrderBy(c => c.TotalCost).First();
+
+            // 3. Если не нашли - создаем минимально возможную зону с 2 стержнями
+            return CreateMinimalZone(nodes, boundary, requiredAs);
+        }
+
+        private ZoneSolution CreateMinimalZone(List<Node> nodes, Rectangle boundary, double requiredAs)
+        {
+            // Находим минимальный диаметр, удовлетворяющий требованиям по площади
+            var suitableRebars = AvailableRebars
+                .SelectMany(r => r.AvailableSpacings.Select(s => new
+                {
+                    Rebar = r,
+                    Spacing = s,
+                    Area = Math.PI * r.Diameter * r.Diameter / 4 * (1000 / s)
+                }))
+                .Where(x => x.Area >= requiredAs)
+                .OrderBy(x => x.Rebar.PricePerMeter)
+                .ToList();
+
+            if (suitableRebars.Count == 0)
+                return null;
+
+            // Берем самый дешевый вариант
+            var bestConfig = suitableRebars.First();
+
+            // Рассчитываем минимальные размеры зоны для 2 стержней
+            double minWidth = bestConfig.Spacing / 1000 * (MinRebarPerDirection - 1);
+            double minHeight = bestConfig.Spacing / 1000 * (MinRebarPerDirection - 1);
+
+            // Корректируем границы зоны, если она слишком мала
+            var adjustedBoundary = new Rectangle(
+                boundary.X,
+                boundary.Y,
+                Math.Max(boundary.Width, minWidth),
+                Math.Max(boundary.Height, minHeight)
+            );
+
+            // Используем минимальную длину стержней для экономии
+            double length = StandardLengths.Min();
+
+            // Рассчитываем стоимость (2 стержня в каждом направлении)
+            double totalLength = MinRebarPerDirection * 2 * (length / 1000);
+            double totalCost = totalLength * bestConfig.Rebar.PricePerMeter;
+
+            return new ZoneSolution
+            {
+                Nodes = nodes,
+                Rebar = bestConfig.Rebar,
+                Spacing = bestConfig.Spacing,
+                StandardLength = length,
+                Boundary = adjustedBoundary,
+                TotalCost = totalCost,
+                TotalLength = totalLength,
+                AreaX = bestConfig.Area,
+                AreaY = bestConfig.Area
+            };
+        }
+        #endregion
+
+        #region Геометрические расчеты
+        private Rectangle CalculateBoundary(List<Node> nodes)
+        {
+            double minX = nodes.Min(n => n.X);
+            double maxX = nodes.Max(n => n.X);
+            double minY = nodes.Min(n => n.Y);
+            double maxY = nodes.Max(n => n.Y);
+
+            return new Rectangle
+            {
+                X = minX - 0.1,
+                Y = minY - 0.1,
+                Width = maxX - minX + 0.2,
+                Height = maxY - minY + 0.2
+            };
+        }
+
+        private bool RectanglesIntersect(Rectangle a, Rectangle b)
+        {
+            return a.X < b.X + b.Width &&
+                   a.X + a.Width > b.X &&
+                   a.Y < b.Y + b.Height &&
+                   a.Y + a.Height > b.Y;
+        }
+
+        private double Distance(Node a, Node b) =>
+            Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
+        #endregion
+
+        #region Методы работы с Revit
         public static List<Opening> GetOpeningsFromRevit(List<Floor> floors)
         {
             var openings = new List<Opening>();
@@ -356,6 +1148,7 @@ namespace CalcFittingsPlugin
                                         for (int i = 1; i < curveLoops.Count; i++)
                                         {
                                             var loop = curveLoops[i];
+                                            var polygon = loop.Select(c => c.GetEndPoint(0)).ToList();
                                             var bbox = GetLoopBoundingBox(loop);
 
                                             // Фильтруем слишком маленькие отверстия
@@ -365,6 +1158,7 @@ namespace CalcFittingsPlugin
                                             openings.Add(new Opening
                                             {
                                                 SlabId = slabId,
+                                                Polygon = polygon,
                                                 Boundary = bbox
                                             });
                                         }
@@ -410,564 +1204,6 @@ namespace CalcFittingsPlugin
                 (maxY - minY) + 0.1
             );
         }
-
-        // Основной метод оптимизации
-        public List<ReinforcementSolution> FindBestSolutions(List<List<Node>> slabsNodes, int solutionCount)
-        {
-            // 1. Инициализация популяции
-            var population = InitializePopulation(slabsNodes);
-
-            // 2. Эволюционный процесс
-            for (int gen = 0; gen < Generations; gen++)
-            {
-                population = EvolvePopulation(population, slabsNodes);
-                Debug.WriteLine($"Generation {gen}: Best cost = {population[0].TotalCost}");
-            }
-
-            // 3. Возврат лучших уникальных решений
-            return GetUniqueSolutions(population, solutionCount);
-        }
-
-        private List<ReinforcementSolution> InitializePopulation(List<List<Node>> slabsNodes)
-        {
-            var population = new List<ReinforcementSolution>();
-
-            for (int i = 0; i < PopulationSize; i++)
-            {
-                var solution = new ReinforcementSolution { Zones = new List<ZoneSolution>() };
-
-                foreach (var nodes in slabsNodes.Where(n => n?.Count > 0))
-                {
-                    // Разные стратегии кластеризации для разнообразия
-                    List<List<Node>> zones;
-                    if (i % 3 == 0)
-                        zones = ClusterByGrid(nodes);
-                    else if (i % 3 == 1)
-                        zones = ClusterByDistance(nodes);
-                    else
-                        zones = ClusterByLoad(nodes);
-
-                    // Оптимизация с учетом отверстий
-                    zones = OptimizeZoneShapes(zones, Openings);
-
-                    foreach (var zoneNodes in zones)
-                    {
-                        var zone = OptimizeZone(zoneNodes);
-                        if (zone != null) solution.Zones.Add(zone);
-                    }
-                }
-
-                if (solution.Zones.Count > 0)
-                    population.Add(solution);
-            }
-
-            return population;
-        }
-
-        // Метод разделения кластера на подкластеры
-        private List<List<Node>> SplitCluster(List<Node> cluster, List<Opening> openings)
-        {
-            if (cluster.Count <= 3) // Не разделяем маленькие кластеры
-                return new List<List<Node>> { cluster };
-
-            // Разделяем по координате X
-            var sorted = cluster.OrderBy(n => n.X).ToList();
-            int mid = sorted.Count / 2;
-
-            var left = sorted.Take(mid).ToList();
-            var right = sorted.Skip(mid).ToList();
-
-            return new List<List<Node>> { left, right };
-        }
-
-        // Оптимизация отдельной зоны
-        private ZoneSolution OptimizeZone(List<Node> nodes)
-        {
-            if (nodes == null || nodes.Count == 0)
-                return null;
-
-            var boundary = CalculateBoundary(nodes);
-
-            // Конвертируем требуемое армирование из см²/м в мм²/м
-            double requiredAs = nodes.Max(n => Math.Max(Math.Max(n.As1X, n.As2X),
-                                      Math.Max(n.As3Y, n.As4Y))) * 100; // 1 см² = 100 мм²
-
-            var bestConfig = AvailableRebars
-                .SelectMany(r => r.AvailableSpacings.Select(s => new {
-                    Rebar = r,
-                    Spacing = s, // в мм (как введено пользователем)
-                                 // Площадь арматуры на метр (мм²/м)
-                Area = (Math.PI * r.Diameter * r.Diameter / 4) * (1000 / s)
-                }))
-                .Where(x => x.Area >= requiredAs)
-                .OrderBy(x => x.Rebar.PricePerMeter)
-                .FirstOrDefault();
-
-            if (bestConfig == null)
-                return null;
-
-            // Длина стержня в метрах (пользователь вводит мм, поэтому делим на 1000)
-            double length = StandardLengths.First() / 1000.0;
-
-            // Размеры зоны в метрах (boundary уже в метрах)
-            double width = boundary.Width;
-            double height = boundary.Height;
-
-            // Шаг арматуры в метрах
-            double spacing = bestConfig.Spacing / 1000.0;
-
-            // Количество стержней
-            double xBars = Math.Ceiling(height / spacing);
-            double yBars = Math.Ceiling(width / spacing);
-
-            // Стоимость (цена за метр * количество стержней * длину стержня)
-            double totalCost = (xBars + yBars) * length * bestConfig.Rebar.PricePerMeter;
-
-            return new ZoneSolution
-            {
-                Nodes = nodes,
-                Rebar = bestConfig.Rebar,
-                Spacing = bestConfig.Spacing, // сохраняем в мм для отображения
-                StandardLength = StandardLengths.First(), // в мм
-                Boundary = boundary,
-                TotalCost = totalCost
-            };
-        }
-
-        // Метод выбора родителя для скрещивания (турнирная селекция)
-        private ReinforcementSolution SelectParent(List<ReinforcementSolution> population)
-        {
-            int tournamentSize = Math.Min(5, population.Count);
-            var candidates = population
-                .OrderBy(x => Random.Next())
-                .Take(tournamentSize)
-                .OrderBy(s => s.TotalCost)
-                .ToList();
-
-            return candidates.First();
-        }
-
-        // Кластеризация по нагрузке
-        private List<List<Node>> ClusterByLoad(List<Node> nodes)
-        {
-            // Разделяем узлы на группы по требованию армирования
-            double threshold = BasicReinforcement.Average() * 1.5;
-            var highLoad = nodes.Where(n =>
-                n.As1X > threshold ||
-                n.As2X > threshold ||
-                n.As3Y > threshold ||
-                n.As4Y > threshold).ToList();
-
-            var lowLoad = nodes.Except(highLoad).ToList();
-
-            var result = new List<List<Node>>();
-            if (highLoad.Count > 0) result.Add(highLoad);
-            if (lowLoad.Count > 0) result.Add(lowLoad);
-
-            return result;
-        }
-
-        private List<ReinforcementSolution> EvolvePopulation(List<ReinforcementSolution> population,
-                                                           List<List<Node>> slabsNodes)
-        {
-            // 1. Оценка и сортировка
-            var evaluated = population
-                .Where(s => s != null && s.Zones != null)
-                .OrderBy(s => s.TotalCost)
-                .ToList();
-
-            // 2. Отбор элитных решений
-            var newPopulation = evaluated.Take(EliteCount).ToList();
-
-            // 3. Генерация потомков
-            while (newPopulation.Count < PopulationSize)
-            {
-                var parent1 = SelectParent(evaluated);
-                var parent2 = SelectParent(evaluated);
-
-                var offspring = Crossover(parent1, parent2, slabsNodes);
-                offspring = Mutate(offspring, slabsNodes, Openings);
-
-                if (offspring?.Zones?.Count > 0)
-                    newPopulation.Add(offspring);
-            }
-
-            return newPopulation;
-        }
-
-        #region Методы кластеризации
-        private List<List<Node>> ClusterByGrid(List<Node> nodes)
-        {
-            double gridSize = 3.0;
-            var grid = new Dictionary<(int, int), List<Node>>();
-
-            foreach (var node in nodes)
-            {
-                int xCell = (int)(node.X / gridSize);
-                int yCell = (int)(node.Y / gridSize);
-                var key = (xCell, yCell);
-
-                if (!grid.ContainsKey(key)) grid[key] = new List<Node>();
-                grid[key].Add(node);
-            }
-
-            return grid.Values.ToList();
-        }
-
-        private List<List<Node>> ClusterByDistance(List<Node> nodes)
-        {
-            double maxDistance = 2.5;
-            var clusters = new List<List<Node>>();
-            var visited = new HashSet<Node>();
-
-            foreach (var node in nodes.OrderBy(n => n.X))
-            {
-                if (visited.Contains(node)) continue;
-
-                var cluster = new List<Node>();
-                var queue = new Queue<Node>();
-                queue.Enqueue(node);
-                visited.Add(node);
-
-                while (queue.Count > 0)
-                {
-                    var current = queue.Dequeue();
-                    cluster.Add(current);
-
-                    var neighbors = nodes
-                        .Where(n => !visited.Contains(n) && Distance(current, n) <= maxDistance)
-                        .ToList();
-
-                    foreach (var neighbor in neighbors)
-                    {
-                        visited.Add(neighbor);
-                        queue.Enqueue(neighbor);
-                    }
-                }
-
-                if (cluster.Count > 0)
-                    clusters.Add(cluster);
-            }
-
-            return clusters;
-        }
-        
-        private List<List<Node>> OptimizeZoneShapes(List<List<Node>> clusters, List<Opening> openings)
-        {
-            var optimized = new List<List<Node>>();
-
-            foreach (var cluster in clusters)
-            {
-                var boundary = CalculateBoundary(cluster);
-                var subClusters = SplitClusterAroundOpenings(cluster, boundary, openings);
-
-                foreach (var subCluster in subClusters)
-                {
-                    var optimizedZone = FindOptimalShape(subCluster, openings);
-                    optimized.Add(optimizedZone.Nodes);
-                }
-            }
-
-            return optimized;
-        }
-
-        private List<List<Node>> SplitClusterAroundOpenings(List<Node> cluster, Rectangle boundary,
-                                                  List<Opening> openings)
-        {
-            // Преобразуем Opening в Rectangle
-            var intersecting = openings
-                .Where(o => RectanglesIntersect(boundary, o.Boundary))
-                .Select(o => o.Boundary)
-                .ToList();
-
-            if (!intersecting.Any())
-                return new List<List<Node>> { cluster };
-
-            var allowedAreas = CalculateAllowedAreas(boundary, intersecting);
-            var result = new List<List<Node>>();
-
-            foreach (var area in allowedAreas)
-            {
-                var nodesInArea = cluster
-                    .Where(n => IsPointInRectangle(n.X, n.Y, area))
-                    .ToList();
-
-                if (nodesInArea.Count > 0)
-                    result.Add(nodesInArea);
-            }
-
-            return result;
-        }
-
-        private List<Rectangle> CalculateAllowedAreas(Rectangle boundary, List<Rectangle> holes)
-        {
-            var allowedAreas = new List<Rectangle> { boundary };
-
-            foreach (var hole in holes.OrderBy(h => h.X))
-            {
-                var newAreas = new List<Rectangle>();
-
-                foreach (var area in allowedAreas)
-                {
-                    if (!RectanglesIntersect(area, hole))
-                    {
-                        newAreas.Add(area);
-                        continue;
-                    }
-
-                    // Разбиваем область на 4 возможных прямоугольника вокруг отверстия
-                    newAreas.AddRange(SplitRectangleAroundHole(area, hole));
-                }
-
-                allowedAreas = newAreas
-                    .Where(a => a.Width > 0.1 && a.Height > 0.1) // Фильтруем слишком маленькие области
-                    .ToList();
-            }
-
-            return allowedAreas;
-        }
-
-        private List<Rectangle> SplitRectangleAroundHole(Rectangle original, Rectangle hole)
-        {
-            var result = new List<Rectangle>();
-
-            // 1. Левая часть (если отверстие не у левого края)
-            if (hole.X > original.X)
-            {
-                result.Add(new Rectangle
-                {
-                    X = original.X,
-                    Y = original.Y,
-                    Width = hole.X - original.X,
-                    Height = original.Height
-                });
-            }
-
-            // 2. Правая часть (если отверстие не у правого края)
-            if (hole.X + hole.Width < original.X + original.Width)
-            {
-                result.Add(new Rectangle
-                {
-                    X = hole.X + hole.Width,
-                    Y = original.Y,
-                    Width = original.X + original.Width - (hole.X + hole.Width),
-                    Height = original.Height
-                });
-            }
-
-            // 3. Верхняя часть (между левой и правой частями)
-            if (hole.Y > original.Y)
-            {
-                result.Add(new Rectangle
-                {
-                    X = Math.Max(original.X, hole.X),
-                    Y = original.Y,
-                    Width = Math.Min(original.X + original.Width, hole.X + hole.Width) -
-                           Math.Max(original.X, hole.X),
-                    Height = hole.Y - original.Y
-                });
-            }
-
-            // 4. Нижняя часть (между левой и правой частями)
-            if (hole.Y + hole.Height < original.Y + original.Height)
-            {
-                result.Add(new Rectangle
-                {
-                    X = Math.Max(original.X, hole.X),
-                    Y = hole.Y + hole.Height,
-                    Width = Math.Min(original.X + original.Width, hole.X + hole.Width) -
-                           Math.Max(original.X, hole.X),
-                    Height = original.Y + original.Height - (hole.Y + hole.Height)
-                });
-            }
-
-            return result.Where(r => r.Width > 0.1 && r.Height > 0.1).ToList();
-        }
-
-        private bool IsPointInRectangle(double x, double y, Rectangle rect)
-        {
-            return x >= rect.X &&
-                   x <= rect.X + rect.Width &&
-                   y >= rect.Y &&
-                   y <= rect.Y + rect.Height;
-        }
-        private ReinforcementSolution Crossover(ReinforcementSolution parent1, ReinforcementSolution parent2,
-                                              List<List<Node>> slabsNodes)
-        {
-            var child = new ReinforcementSolution { Zones = new List<ZoneSolution>() };
-
-            for (int i = 0; i < slabsNodes.Count; i++)
-            {
-                if (Random.NextDouble() < 0.5)
-                    child.Zones.AddRange(parent1.Zones.Where(z => z.Nodes[0].SlabId == i));
-                else
-                    child.Zones.AddRange(parent2.Zones.Where(z => z.Nodes[0].SlabId == i));
-            }
-
-            return child;
-        }
-
-        private ReinforcementSolution Mutate(ReinforcementSolution solution, List<List<Node>> slabsNodes,
-                                          List<Opening> openings)
-        {
-            var mutated = solution.ShallowCopy(solution);
-
-            if (Random.NextDouble() > MutationRate || mutated.Zones.Count == 0)
-                return mutated;
-
-            int zoneIndex = Random.Next(mutated.Zones.Count);
-            var zone = mutated.Zones[zoneIndex];
-
-            switch (Random.Next(3))
-            {
-                case 0: // Изменение размеров
-                    mutated.Zones[zoneIndex] = ResizeZone(zone, openings);
-                    break;
-
-                case 1: // Разделение зоны
-                    mutated.Zones.RemoveAt(zoneIndex);
-                    var split = SplitCluster(zone.Nodes, openings);
-                    mutated.Zones.AddRange(split.Select(OptimizeZone));
-                    break;
-            }
-
-            return mutated;
-        }
-
-        private ZoneSolution ResizeZone(ZoneSolution zone, List<Opening> openings)
-        {
-            Rectangle bestBoundary = zone.Boundary;
-            double minCost = zone.TotalCost;
-
-            // Тестируем 5 вариантов изменения размера
-            for (int i = 0; i < 5; i++)
-            {
-                double expand = (Random.NextDouble() * 2) - 0.5; // [-0.5, 1.5]
-
-                var newBoundary = new Rectangle(
-                    zone.Boundary.X - expand / 2,
-                    zone.Boundary.Y - expand / 2,
-                    zone.Boundary.Width + expand,
-                    zone.Boundary.Height + expand
-                );
-
-                if (openings.Any(o => RectanglesIntersect(newBoundary, o.Boundary)))
-                    continue;
-
-                var testSolution = CreateZoneSolution(zone.Nodes, newBoundary);
-                if (testSolution.TotalCost < minCost)
-                {
-                    minCost = testSolution.TotalCost;
-                    bestBoundary = newBoundary;
-                }
-            }
-
-            return CreateZoneSolution(zone.Nodes, bestBoundary);
-        }
-        #endregion
-
-        #region Вспомогательные методы
-        private ZoneSolution FindOptimalShape(List<Node> nodes, List<Opening> openings)
-        {
-            var boundary = CalculateBoundary(nodes);
-            ZoneSolution bestSolution = CreateZoneSolution(nodes, boundary);
-
-            // Тестируем варианты с разными отступами
-            for (double padding = 0.5; padding <= 1.5; padding += 0.5)
-            {
-                var testBoundary = new Rectangle(
-                    boundary.X - padding,
-                    boundary.Y - padding,
-                    boundary.Width + 2 * padding,
-                    boundary.Height + 2 * padding
-                );
-
-                if (openings.Any(o => RectanglesIntersect(testBoundary, o.Boundary)))
-                    continue;
-
-                var testSolution = CreateZoneSolution(nodes, testBoundary);
-                if (testSolution.TotalCost < bestSolution.TotalCost)
-                    bestSolution = testSolution;
-            }
-
-            return bestSolution;
-        }
-
-        private ZoneSolution CreateZoneSolution(List<Node> nodes, Rectangle boundary)
-        {
-            double requiredAs = nodes
-                .Select(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max())
-                .Max();
-
-            var bestConfig = AvailableRebars
-                .SelectMany(r => r.AvailableSpacings
-                    .Select(s => new {
-                        Rebar = r,
-                        Spacing = s,
-                        Area = Math.PI * r.Diameter * r.Diameter / 4 * (1000 / s)
-                    }))
-                .Where(x => x.Area >= requiredAs)
-                .OrderBy(x => x.Rebar.PricePerMeter)
-                .FirstOrDefault();
-
-            if (bestConfig == null) return null;
-
-            double length = StandardLengths.First();
-            double xBars = Math.Ceiling(boundary.Height / bestConfig.Spacing);
-            double yBars = Math.Ceiling(boundary.Width / bestConfig.Spacing);
-            double totalCost = (xBars + yBars) * length * bestConfig.Rebar.PricePerMeter;
-
-            return new ZoneSolution
-            {
-                Nodes = nodes,
-                Rebar = bestConfig.Rebar,
-                Spacing = bestConfig.Spacing,
-                Boundary = boundary,
-                TotalCost = totalCost
-            };
-        }
-
-        private List<ReinforcementSolution> GetUniqueSolutions(List<ReinforcementSolution> solutions, int count)
-        {
-            return solutions
-                .GroupBy(s => string.Join("|", s.Zones
-                    .OrderBy(z => z.Boundary.X)
-                    .Select(z => $"{z.Rebar.Diameter}@{z.Spacing}")))
-                .Select(g => g.First())
-                .OrderBy(s => s.TotalCost)
-                .Take(count)
-                .ToList();
-        }
-        #endregion
-
-        #region Геометрические расчеты
-        private Rectangle CalculateBoundary(List<Node> nodes)
-        {
-            double minX = nodes.Min(n => n.X);
-            double maxX = nodes.Max(n => n.X);
-            double minY = nodes.Min(n => n.Y);
-            double maxY = nodes.Max(n => n.Y);
-
-            return new Rectangle
-            {
-                X = minX - 0.1,
-                Y = minY - 0.1,
-                Width = maxX - minX + 0.2,
-                Height = maxY - minY + 0.2
-            };
-        }
-
-        private bool RectanglesIntersect(Rectangle a, Rectangle b)
-        {
-            return a.X < b.X + b.Width &&
-                   a.X + a.Width > b.X &&
-                   a.Y < b.Y + b.Height &&
-                   a.Y + a.Height > b.Y;
-        }
-
-        private double Distance(Node a, Node b) =>
-            Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
         #endregion
     }
 }
-
