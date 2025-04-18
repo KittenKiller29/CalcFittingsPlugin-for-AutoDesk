@@ -20,10 +20,15 @@ namespace CalcFittingsPlugin
 
         public static UIDocument uiDoc;
 
+        public static VisualizationHandler VisualizationHandler { get; private set; }
+        public static ExternalEvent VisualizationEvent { get; private set; }
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             UserControl1 view = new UserControl1();
             uiDoc = commandData.Application.ActiveUIDocument;
+            VisualizationHandler = new VisualizationHandler();
+            VisualizationEvent = ExternalEvent.Create(VisualizationHandler);
 
             view.Show();
             return Result.Succeeded;
@@ -233,6 +238,228 @@ namespace CalcFittingsPlugin
         }
     }
 
+    [Transaction(TransactionMode.Manual)]
+    public class VisualizationHandler : IExternalEventHandler
+    {
+        public ReinforcementSolution Solution { get; set; }
+        public int SolutionIndex { get; set; }
+        public UIDocument UiDoc { get; set; }
+        public List<Floor> Floors { get; set; }
+
+        public void Execute(UIApplication app)
+        {
+            UIDocument uiDoc = app.ActiveUIDocument;
+            Document doc = uiDoc.Document;
+
+            using (Transaction trans = new Transaction(doc, "3D Reinforcement Visualization"))
+            {
+                try
+                {
+                    trans.Start();
+
+                    // Очищаем предыдущую визуализацию
+                    CleanPreviousVisualization(doc);
+
+                    // Создаем 3D вид
+                    View3D view3D = GetOrCreate3DView(doc);
+                    uiDoc.ActiveView = view3D;
+
+                    // Визуализируем каждую зону
+                    for (int i = 0; i < Solution.Zones.Count; i++)
+                    {
+                        VisualizeZone(doc, view3D, Solution.Zones[i], i + 1);
+                    }
+
+                    trans.Commit();
+
+                    // Обновляем вид
+                    uiDoc.RefreshActiveView();
+                }
+                catch (Exception ex)
+                {
+                    TaskDialog.Show("Ошибка визуализации", ex.Message);
+                    trans.RollBack();
+                }
+            }
+
+        }
+
+        private void VisualizeZone(Document doc, View3D view, ZoneSolution zone, int zoneNumber)
+        {
+            if (zone.Nodes == null || zone.Nodes.Count == 0) return;
+
+            // Получаем соответствующую плиту
+            Floor floor = Floors[zone.Nodes[0].SlabId];
+            Level level = doc.GetElement(floor.LevelId) as Level;
+            double elevation = level.Elevation;
+
+            // Создаем границу зоны
+            CreateZoneBoundary(doc, view, zone, elevation);
+
+            // Визуализируем арматуру
+            CreateRebarVisualization(doc, view, zone, elevation);
+
+            // Добавляем текстовую аннотацию
+            CreateZoneAnnotation(doc, view, zone, elevation, zoneNumber);
+        }
+
+        private void CreateZoneBoundary(Document doc, View3D view, ZoneSolution zone, double elevation)
+        {
+            // Создаем линии границы зоны
+            XYZ p1 = new XYZ(zone.Boundary.X, zone.Boundary.Y, elevation + 0.1);
+            XYZ p2 = new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y, elevation + 0.1);
+            XYZ p3 = new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y + zone.Boundary.Height, elevation + 0.1);
+            XYZ p4 = new XYZ(zone.Boundary.X, zone.Boundary.Y + zone.Boundary.Height, elevation + 0.1);
+
+            // Создаем 4 линии границы
+            CreateModelCurve(doc, Line.CreateBound(p1, p2), "ZoneBorderStyle");
+            CreateModelCurve(doc, Line.CreateBound(p2, p3), "ZoneBorderStyle");
+            CreateModelCurve(doc, Line.CreateBound(p3, p4), "ZoneBorderStyle");
+            CreateModelCurve(doc, Line.CreateBound(p4, p1), "ZoneBorderStyle");
+        }
+
+        private void CreateRebarVisualization(Document doc, View3D view, ZoneSolution zone, double elevation)
+        {
+            double spacing = zone.Spacing / 1000.0; // мм -> м
+
+            // Вертикальные стержни
+            for (double y = zone.Boundary.Y; y <= zone.Boundary.Y + zone.Boundary.Height; y += spacing)
+            {
+                XYZ start = new XYZ(zone.Boundary.X, y, elevation + 0.1);
+                XYZ end = new XYZ(zone.Boundary.X + zone.Boundary.Width, y, elevation + 0.1);
+                CreateModelCurve(doc, Line.CreateBound(start, end), "RebarStyle");
+            }
+
+            // Горизонтальные стержни
+            for (double x = zone.Boundary.X; x <= zone.Boundary.X + zone.Boundary.Width; x += spacing)
+            {
+                XYZ start = new XYZ(x, zone.Boundary.Y, elevation + 0.1);
+                XYZ end = new XYZ(x, zone.Boundary.Y + zone.Boundary.Height, elevation + 0.1);
+                CreateModelCurve(doc, Line.CreateBound(start, end), "RebarStyle");
+            }
+        }
+
+        private void CreateZoneAnnotation(Document doc, View3D view, ZoneSolution zone, double elevation, int zoneNumber)
+        {
+            XYZ center = new XYZ(
+                zone.Boundary.X + zone.Boundary.Width / 2,
+                zone.Boundary.Y + zone.Boundary.Height / 2,
+                elevation + 0.2);
+
+            string text = $"Зона {zoneNumber}\nØ{zone.Rebar.Diameter}@{zone.Spacing}";
+
+            TextNote.Create(doc, view.Id, center, text, GetDefaultTextNoteType(doc).Id);
+        }
+
+        private void CleanPreviousVisualization(Document doc)
+        {
+            // Удаляем все ModelCurve из проекта
+            ICollection<ElementId> curves = new FilteredElementCollector(doc)
+                .OfClass(typeof(ModelCurve))
+                .ToElementIds();
+
+            if (curves.Count > 0)
+            {
+                doc.Delete(curves);
+            }
+        }
+
+        private View3D GetOrCreate3DView(Document doc)
+        {
+            View3D view = new FilteredElementCollector(doc)
+                .OfClass(typeof(View3D))
+                .Cast<View3D>()
+                .FirstOrDefault(v => !v.IsTemplate && v.Name == "Armature Visualization");
+
+            if (view == null)
+            {
+                using (Transaction t = new Transaction(doc, "Create 3D View"))
+                {
+                    t.Start();
+                    view = View3D.CreateIsometric(doc,
+                        new FilteredElementCollector(doc)
+                            .OfClass(typeof(ViewFamilyType))
+                            .Cast<ViewFamilyType>()
+                            .First(x => x.ViewFamily == ViewFamily.ThreeDimensional).Id);
+                    view.Name = "Armature Visualization";
+                    t.Commit();
+                }
+            }
+
+            return view;
+        }
+
+        private ModelCurve CreateModelCurve(Document doc, Curve curve, string styleName)
+        {
+            // Создаем плоскость эскиза на уровне XY
+            Plane plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, XYZ.Zero);
+            SketchPlane sketchPlane = SketchPlane.Create(doc, plane);
+
+            // Создаем модельную кривую
+            ModelCurve modelCurve = doc.Create.NewModelCurve(curve, sketchPlane);
+
+            // Применяем стиль
+            GraphicsStyle style = GetLineStyle(doc, styleName);
+            if (style != null)
+            {
+                modelCurve.LineStyle = style;
+            }
+
+            // Настраиваем цвет
+            Color color = styleName == "RebarStyle" ? new Color(255, 0, 0) : new Color(0, 255, 0);
+            OverrideGraphicSettings settings = new OverrideGraphicSettings()
+                .SetProjectionLineColor(color)
+                .SetProjectionLineWeight(2);
+
+            doc.ActiveView.SetElementOverrides(modelCurve.Id, settings);
+
+            return modelCurve;
+        }
+
+        private static GraphicsStyle GetLineStyle(Document doc, string styleName)
+        {
+            // Пытаемся найти существующий стиль
+            GraphicsStyle style = new FilteredElementCollector(doc)
+                .OfClass(typeof(GraphicsStyle))
+                .Cast<GraphicsStyle>()
+                .FirstOrDefault(gs => gs.Name == styleName);
+
+            if (style == null)
+            {
+                // Используем стандартный стиль, если не нашли
+                style = new FilteredElementCollector(doc)
+                    .OfClass(typeof(GraphicsStyle))
+                    .Cast<GraphicsStyle>()
+                    .FirstOrDefault(gs => gs.GraphicsStyleCategory.Name == "Тонкие линии");
+            }
+
+            return style;
+        }
+
+        private TextNoteType GetDefaultTextNoteType(Document doc)
+        {
+            // Получаем первый доступный тип текстовой аннотации
+            TextNoteType textType = new FilteredElementCollector(doc)
+                .OfClass(typeof(TextNoteType))
+                .FirstElement() as TextNoteType;
+
+            // Если нет существующих, создаем новый
+            if (textType == null)
+            {
+                using (Transaction t = new Transaction(doc, "Create TextNote Type"))
+                {
+                    t.Start();
+                    //textType = TextNoteType.Create(doc, "Аннотации армирования", null);
+                    t.Commit();
+                }
+            }
+
+            return textType;
+        }
+
+        public string GetName() => "Reinforcement Visualization";
+    }
+
     public class RebarConfig
     {
         public double Diameter { get; set; } // Диаметр арматуры (мм)
@@ -330,8 +557,8 @@ namespace CalcFittingsPlugin
         public double[] BasicReinforcement { get; set; }
         public List<Opening> Openings { get; set; } = new List<Opening>();
         public int PopulationSize { get; set; } = 50;
-        public int Generations { get; set; } = 800;
-        public double MutationRate { get; set; } = 0.4;
+        public int Generations { get; set; } = 1000;
+        public double MutationRate { get; set; } = 0.3;
         public int EliteCount { get; set; } = 5;
         public double MinRebarPerDirection { get; set; } = 2; // Минимум 2 стержня в каждом направлении
 
@@ -737,7 +964,8 @@ namespace CalcFittingsPlugin
             double centerY = cluster.Average(n => n.Y);
 
             var nearest = existingClusters
-                .Select(c => new {
+                .Select(c => new
+                {
                     Cluster = c,
                     Distance = Math.Sqrt(
                         Math.Pow(c.Average(n => n.X) - centerX, 2) +
@@ -1108,7 +1336,7 @@ namespace CalcFittingsPlugin
             Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
         #endregion
 
-        #region Методы работы с Revit
+
         public static List<Opening> GetOpeningsFromRevit(List<Floor> floors)
         {
             var openings = new List<Opening>();
@@ -1204,6 +1432,6 @@ namespace CalcFittingsPlugin
                 (maxY - minY) + 0.1
             );
         }
-        #endregion
     }
+
 }

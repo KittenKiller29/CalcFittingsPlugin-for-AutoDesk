@@ -34,7 +34,7 @@ namespace CalcFittingsPlugin
         static private DataTable Length;
         static private string FlrName;
         static private DataTable FitDataTable;
-        
+
 
         public UserControl1()
         {
@@ -518,6 +518,20 @@ namespace CalcFittingsPlugin
                                       $"Арматура: Ø{zone.Rebar.Diameter}/{zone.Spacing}, " +
                                       $"Стоимость: {zone.TotalCost}");
                     }*/
+                }
+
+                if (bestSolutions.Count > 0 && Command.VisualizationEvent != null)
+                {
+                    Command.VisualizationHandler.Solution = bestSolutions[0]; // Первое решение
+                    Command.VisualizationHandler.Floors = floors;
+
+                    // Запускаем визуализацию
+                    Command.VisualizationEvent.Raise();
+
+                    // Запускаем визуализацию
+                    Command.VisualizationEvent.Raise();
+
+                    ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация запущена"));
                 }
 
 
