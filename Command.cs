@@ -248,94 +248,151 @@ namespace CalcFittingsPlugin
 
         public void Execute(UIApplication app)
         {
-            UIDocument uiDoc = app.ActiveUIDocument;
-            Document doc = uiDoc.Document;
+            var uiDoc = app.ActiveUIDocument;
+            var doc = uiDoc.Document;
 
-            using (Transaction trans = new Transaction(doc, "3D Reinforcement Visualization"))
+            View3D view3D = GetOrCreate3DView(doc);
+            uiDoc.ActiveView = view3D;
+
+            try
             {
-                try
+                // Если нет активной транзакции, используем обычную Transaction
+                if (!doc.IsModifiable)
                 {
-                    trans.Start();
-
-                    // Очищаем предыдущую визуализацию
-                    CleanPreviousVisualization(doc);
-
-                    // Создаем 3D вид
-                    View3D view3D = GetOrCreate3DView(doc);
-                    uiDoc.ActiveView = view3D;
-
-                    // Визуализируем каждую зону
-                    for (int i = 0; i < Solution.Zones.Count; i++)
+                    using (var t = new Transaction(doc, "3D Visualization"))
                     {
-                        VisualizeZone(doc, view3D, Solution.Zones[i], i + 1);
+                        t.Start();
+                        ExecuteVisualization(doc, uiDoc, view3D);
+                        t.Commit();
                     }
-
-                    trans.Commit();
-
-                    // Обновляем вид
-                    uiDoc.RefreshActiveView();
                 }
-                catch (Exception ex)
+                else // Если уже есть активная транзакция, используем SubTransaction
                 {
-                    TaskDialog.Show("Ошибка визуализации", ex.Message);
-                    trans.RollBack();
+                    using (var st = new SubTransaction(doc))
+                    {
+                        st.Start();
+                        ExecuteVisualization(doc, uiDoc, view3D);
+                        st.Commit();
+                    }
                 }
-            }
 
+                uiDoc.RefreshActiveView();
+
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка", ex.ToString());
+            }
+        }
+
+        private void ExecuteVisualization(Document doc, UIDocument uiDoc, View3D view3D)
+        {
+            CleanPreviousVisualization(doc);
+
+
+            foreach (var zone in Solution.Zones)
+            {
+                VisualizeZone(doc, view3D, zone, Solution.Zones.IndexOf(zone) + 1);
+            }
         }
 
         private void VisualizeZone(Document doc, View3D view, ZoneSolution zone, int zoneNumber)
         {
             if (zone.Nodes == null || zone.Nodes.Count == 0) return;
 
-            // Получаем соответствующую плиту
+            // Получаем уровень плиты
             Floor floor = Floors[zone.Nodes[0].SlabId];
             Level level = doc.GetElement(floor.LevelId) as Level;
-            double elevation = level.Elevation;
+            double elevation = level.Elevation + 0.1; // Над плитой
 
-            // Создаем границу зоны
-            CreateZoneBoundary(doc, view, zone, elevation);
+            // Границы зоны
+            CreateZoneBoundary(doc, zone, elevation);
 
-            // Визуализируем арматуру
-            CreateRebarVisualization(doc, view, zone, elevation);
+            // Арматура
+            CreateRebarVisualization(doc, zone, elevation);
 
-            // Добавляем текстовую аннотацию
+            // Текстовая аннотация
             CreateZoneAnnotation(doc, view, zone, elevation, zoneNumber);
         }
 
-        private void CreateZoneBoundary(Document doc, View3D view, ZoneSolution zone, double elevation)
+        private void CreateZoneBoundary(Document doc, ZoneSolution zone, double elevation)
         {
-            // Создаем линии границы зоны
-            XYZ p1 = new XYZ(zone.Boundary.X, zone.Boundary.Y, elevation + 0.1);
-            XYZ p2 = new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y, elevation + 0.1);
-            XYZ p3 = new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y + zone.Boundary.Height, elevation + 0.1);
-            XYZ p4 = new XYZ(zone.Boundary.X, zone.Boundary.Y + zone.Boundary.Height, elevation + 0.1);
+            try
+            {
+                // Создаем список геометрических объектов (а не просто кривых)
+                List<GeometryObject> geometryObjects = new List<GeometryObject>();
 
-            // Создаем 4 линии границы
-            CreateModelCurve(doc, Line.CreateBound(p1, p2), "ZoneBorderStyle");
-            CreateModelCurve(doc, Line.CreateBound(p2, p3), "ZoneBorderStyle");
-            CreateModelCurve(doc, Line.CreateBound(p3, p4), "ZoneBorderStyle");
-            CreateModelCurve(doc, Line.CreateBound(p4, p1), "ZoneBorderStyle");
+                // Добавляем кривые границы зоны
+                geometryObjects.Add(Line.CreateBound(
+                    new XYZ(zone.Boundary.X, zone.Boundary.Y, elevation),
+                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y, elevation)));
+
+                geometryObjects.Add(Line.CreateBound(
+                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y, elevation),
+                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+
+                geometryObjects.Add(Line.CreateBound(
+                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y + zone.Boundary.Height, elevation),
+                    new XYZ(zone.Boundary.X, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+
+                geometryObjects.Add(Line.CreateBound(
+                    new XYZ(zone.Boundary.X, zone.Boundary.Y + zone.Boundary.Height, elevation),
+                    new XYZ(zone.Boundary.X, zone.Boundary.Y, elevation)));
+
+                // Создаем DirectShape
+                DirectShape boundaryShape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                boundaryShape.SetShape(geometryObjects); // Теперь передаем правильный тип
+                boundaryShape.Name = "Zone Boundary";
+
+                // Настраиваем графическое отображение
+                OverrideGraphicSettings ogs = new OverrideGraphicSettings()
+                    .SetProjectionLineColor(new Color(0, 255, 0)) // Зеленый цвет
+                    .SetProjectionLineWeight(1); // Толщина линии
+
+                doc.ActiveView.SetElementOverrides(boundaryShape.Id, ogs);
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка создания границы", ex.Message);
+            }
         }
 
-        private void CreateRebarVisualization(Document doc, View3D view, ZoneSolution zone, double elevation)
+        private void CreateRebarVisualization(Document doc, ZoneSolution zone, double elevation)
         {
-            double spacing = zone.Spacing / 1000.0; // мм -> м
-
-            // Вертикальные стержни
-            for (double y = zone.Boundary.Y; y <= zone.Boundary.Y + zone.Boundary.Height; y += spacing)
+            try
             {
-                XYZ start = new XYZ(zone.Boundary.X, y, elevation + 0.1);
-                XYZ end = new XYZ(zone.Boundary.X + zone.Boundary.Width, y, elevation + 0.1);
-                CreateModelCurve(doc, Line.CreateBound(start, end), "RebarStyle");
+                double spacing = zone.Spacing / 1000.0;
+                List<GeometryObject> geomObjs = new List<GeometryObject>();
+
+                // Вертикальные стержни
+                for (double y = zone.Boundary.Y; y <= zone.Boundary.Y + zone.Boundary.Height; y += spacing)
+                {
+                    geomObjs.Add(Line.CreateBound(
+                        new XYZ(zone.Boundary.X, y, elevation),
+                        new XYZ(zone.Boundary.X + zone.Boundary.Width, y, elevation)));
+                }
+
+                // Горизонтальные стержни
+                for (double x = zone.Boundary.X; x <= zone.Boundary.X + zone.Boundary.Width; x += spacing)
+                {
+                    geomObjs.Add(Line.CreateBound(
+                        new XYZ(x, zone.Boundary.Y, elevation),
+                        new XYZ(x, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+                }
+
+                DirectShape rebarShape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
+                rebarShape.SetShape(geomObjs);
+                rebarShape.Name = "Rebar Visualization";
+
+                OverrideGraphicSettings ogs = new OverrideGraphicSettings()
+                    .SetProjectionLineColor(new Color(255, 0, 0))
+                    .SetProjectionLineWeight(2);
+
+                doc.ActiveView.SetElementOverrides(rebarShape.Id, ogs);
             }
-
-            // Горизонтальные стержни
-            for (double x = zone.Boundary.X; x <= zone.Boundary.X + zone.Boundary.Width; x += spacing)
+            catch (Exception ex)
             {
-                XYZ start = new XYZ(x, zone.Boundary.Y, elevation + 0.1);
-                XYZ end = new XYZ(x, zone.Boundary.Y + zone.Boundary.Height, elevation + 0.1);
-                CreateModelCurve(doc, Line.CreateBound(start, end), "RebarStyle");
+                TaskDialog.Show("Ошибка создания арматуры", ex.Message);
             }
         }
 
@@ -353,65 +410,64 @@ namespace CalcFittingsPlugin
 
         private void CleanPreviousVisualization(Document doc)
         {
-            // Удаляем все ModelCurve из проекта
-            ICollection<ElementId> curves = new FilteredElementCollector(doc)
-                .OfClass(typeof(ModelCurve))
-                .ToElementIds();
-
-            if (curves.Count > 0)
+            try
             {
-                doc.Delete(curves);
+                // Удаляем все DirectShape'ы, созданные плагином
+                var toDelete = new FilteredElementCollector(doc)
+                    .OfClass(typeof(DirectShape))
+                    .Where(e => e.Name == "Zone Boundary" || e.Name == "Rebar Visualization")
+                    .Select(e => e.Id)
+                    .ToList();
+
+                if (toDelete.Count > 0)
+                {
+                    doc.Delete(toDelete);
+                }
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка очистки", ex.Message);
             }
         }
 
         private View3D GetOrCreate3DView(Document doc)
         {
+            // Ищем существующий вид без создания транзакции
             View3D view = new FilteredElementCollector(doc)
-                .OfClass(typeof(View3D))
-                .Cast<View3D>()
-                .FirstOrDefault(v => !v.IsTemplate && v.Name == "Armature Visualization");
+                    .OfClass(typeof(View3D))
+                    .Cast<View3D>()
+                    .FirstOrDefault(v => !v.IsTemplate); 
 
             if (view == null)
             {
-                using (Transaction t = new Transaction(doc, "Create 3D View"))
-                {
-                    t.Start();
-                    view = View3D.CreateIsometric(doc,
-                        new FilteredElementCollector(doc)
-                            .OfClass(typeof(ViewFamilyType))
-                            .Cast<ViewFamilyType>()
-                            .First(x => x.ViewFamily == ViewFamily.ThreeDimensional).Id);
-                    view.Name = "Armature Visualization";
-                    t.Commit();
-                }
+                MessageBox.Show("Не удалось визуализирвоать, не найдена модель", "Визуализация зон", MessageBoxButton.OK, MessageBoxImage.Warning);
+                throw new Exception();
+            }
+
+            if (view != null)
+            {
+                Category modelLinesCategory = Category.GetCategory(doc, BuiltInCategory.OST_Lines);
+                view.SetCategoryHidden(modelLinesCategory.Id, false);
             }
 
             return view;
         }
 
-        private ModelCurve CreateModelCurve(Document doc, Curve curve, string styleName)
+        private CurveElement CreateModelCurve(Document doc, Curve curve, string styleName, double elevation)
         {
-            // Создаем плоскость эскиза на уровне XY
-            Plane plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, XYZ.Zero);
+            // 1. Создаем плоскость эскиза НА НУЖНОЙ ВЫСОТЕ (elevation)
+            Plane plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, new XYZ(0, 0, elevation));
             SketchPlane sketchPlane = SketchPlane.Create(doc, plane);
 
-            // Создаем модельную кривую
+            // 2. Создаем ModelCurve
             ModelCurve modelCurve = doc.Create.NewModelCurve(curve, sketchPlane);
 
-            // Применяем стиль
+            // 3. Настраиваем стиль (если нужно)
             GraphicsStyle style = GetLineStyle(doc, styleName);
             if (style != null)
             {
                 modelCurve.LineStyle = style;
             }
-
-            // Настраиваем цвет
-            Color color = styleName == "RebarStyle" ? new Color(255, 0, 0) : new Color(0, 255, 0);
-            OverrideGraphicSettings settings = new OverrideGraphicSettings()
-                .SetProjectionLineColor(color)
-                .SetProjectionLineWeight(2);
-
-            doc.ActiveView.SetElementOverrides(modelCurve.Id, settings);
 
             return modelCurve;
         }

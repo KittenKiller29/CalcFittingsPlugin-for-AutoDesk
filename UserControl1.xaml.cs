@@ -354,6 +354,7 @@ namespace CalcFittingsPlugin
             FlrName = FlrTextBox.Text;
         }
 
+
         private async void CalcFittingBtn_Click(object sender, RoutedEventArgs e)
         {
             this.IsEnabled = false;
@@ -524,13 +525,10 @@ namespace CalcFittingsPlugin
                 {
                     Command.VisualizationHandler.Solution = bestSolutions[0]; // Первое решение
                     Command.VisualizationHandler.Floors = floors;
-
+                    await Task.Delay(500);
                     // Запускаем визуализацию
-                    Command.VisualizationEvent.Raise();
-
-                    // Запускаем визуализацию
-                    Command.VisualizationEvent.Raise();
-
+                    //Command.VisualizationEvent.Raise();
+                    await viz();
                     ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация запущена"));
                 }
 
@@ -551,6 +549,11 @@ namespace CalcFittingsPlugin
                 this.Activate();
                 this.IsEnabled = true;
             }
+        }
+
+        private async Task viz()
+        {
+            Command.VisualizationEvent.Raise();
         }
 
         private void ArmTextBox_TextChanged(object sender, TextChangedEventArgs e)
