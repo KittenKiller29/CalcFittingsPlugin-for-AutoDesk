@@ -20,13 +20,19 @@ namespace CalcFittingsPlugin
 
         public static UIDocument uiDoc;
 
-        public static VisualizationHandler VisualizationHandler { get; private set; }
-        public static ExternalEvent VisualizationEvent { get; private set; }
+        public static VisualizationHandler VisualizationHandler { get; set; }
+        public static ExternalEvent VisualizationEvent { get; set; }
+        public static CleanHandler CleanHandler { get; set; }
+        public static ExternalEvent CleanEvent { get; set; }
+
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             UserControl1 view = new UserControl1();
             uiDoc = commandData.Application.ActiveUIDocument;
+            CleanHandler = new CleanHandler();
+            CleanEvent = ExternalEvent.Create(CleanHandler);
+
             VisualizationHandler = new VisualizationHandler();
             VisualizationEvent = ExternalEvent.Create(VisualizationHandler);
 
@@ -239,17 +245,78 @@ namespace CalcFittingsPlugin
     }
 
     [Transaction(TransactionMode.Manual)]
+    public class CleanHandler : IExternalEventHandler
+    {
+        public List<Floor> Floors { get; set; }
+        public static UIDocument UiDoc { get; set; }
+        public void Execute(UIApplication app)
+        {
+            UiDoc = app.ActiveUIDocument;
+            var doc = UiDoc.Document;
+
+            try
+            {
+                // Получаем ID целевых плит
+                var targetFloorIds = Floors.Select(f => f.Id.IntegerValue).ToList();
+
+                // Собираем все элементы визуализации
+                var allVizElements = new FilteredElementCollector(doc)
+                    .OfClass(typeof(DirectShape))
+                    .Where(e => e.Name.StartsWith("Zone Boundary_") || e.Name.StartsWith("Rebar Visualization_"))
+                    .ToList();
+
+                // Фильтруем элементы, связанные с целевыми плитами
+                var toDelete = new List<ElementId>();
+
+                foreach (var element in allVizElements)
+                {
+                    // Получаем ID плиты из имени элемента
+                    var nameParts = element.Name.Split('_');
+                    if (nameParts.Length < 2) continue;
+
+                    if (int.TryParse(nameParts.Last(), out int floorIdValue))
+                    {
+                        if (targetFloorIds.Contains(floorIdValue))
+                        {
+                            toDelete.Add(element.Id);
+                        }
+                    }
+                }
+
+                if (toDelete.Count > 0)
+                {
+                    using (Transaction t = new Transaction(doc, "Удаление предыдущей визуализации"))
+                    {
+                        t.Start();
+                        doc.Delete(toDelete);
+                        t.Commit();
+                    }
+                }
+
+                UiDoc.Selection.SetElementIds(Floors.Select(f => f.Id).ToList());
+                UiDoc.ShowElements(Floors.Select(f => f.Id).ToList());
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка очистки", ex.Message);
+            }
+        }
+        public string GetName() => "Reinforcement Clean";
+    }
+
+    [Transaction(TransactionMode.Manual)]
     public class VisualizationHandler : IExternalEventHandler
     {
         public ReinforcementSolution Solution { get; set; }
         public int SolutionIndex { get; set; }
-        public UIDocument UiDoc { get; set; }
+        public static UIDocument UiDoc { get; set; }
         public List<Floor> Floors { get; set; }
 
         public void Execute(UIApplication app)
         {
             var uiDoc = app.ActiveUIDocument;
             var doc = uiDoc.Document;
+            UiDoc = uiDoc;
 
             View3D view3D = GetOrCreate3DView(doc);
             uiDoc.ActiveView = view3D;
@@ -476,7 +543,7 @@ namespace CalcFittingsPlugin
             TextNote.Create(doc, view.Id, center, text, GetDefaultTextNoteType(doc).Id);
         }
 
-        private void CleanPreviousVisualization(Document doc, List<Floor> targetFloors)
+        public void CleanPreviousVisualization(Document doc, List<Floor> targetFloors)
         {
             try
             {

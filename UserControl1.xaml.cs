@@ -649,7 +649,7 @@ namespace CalcFittingsPlugin
 
                 ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения для 3D."));
 
-                Command.VisualizationHandler.Solution = bestSolutions[SolutionsView.SelectedIndex]; // Первое решение
+                Command.VisualizationHandler.Solution = bestSolutions[SolutionsView.SelectedIndex]; 
                 Command.VisualizationHandler.Floors = floors;
 
                 // Запускаем визуализацию
@@ -660,6 +660,8 @@ namespace CalcFittingsPlugin
                 await Task.Delay(500);
 
                 ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения для 3D завершена."));
+
+                CancelBtn.IsEnabled = true;
             }
             catch
             {
@@ -674,6 +676,27 @@ namespace CalcFittingsPlugin
                 this.Activate();
                 this.IsEnabled = true;
             }
+        }
+
+        private void CancelBtn_Click(object sender, RoutedEventArgs e)
+        {
+            //Отменяем принятое решение
+            try
+            {
+                CancelBtn.IsEnabled = false;
+
+                Command.CleanHandler.Floors = floors;
+                Command.CleanEvent.Raise();
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Предыдущая визуализация отменена"));
+            }
+            catch
+            {
+                MessageBox.Show("Не удалось отменить визуализацию зон, удалите зоны вручную.",
+                   "Отмена визуализации", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось отменить визуализацию зон"));
+            }
+            
         }
     }
 }
