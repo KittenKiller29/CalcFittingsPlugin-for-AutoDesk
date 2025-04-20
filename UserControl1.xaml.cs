@@ -36,6 +36,7 @@ namespace CalcFittingsPlugin
         static private DataTable FitDataTable;
         static private DataTable ZonesTable;
         static private List<ReinforcementSolution> bestSolutions;
+        static private List<Floor> floors;
 
         public UserControl1()
         {
@@ -387,7 +388,7 @@ namespace CalcFittingsPlugin
             {
                 progressWindow.Show();
 
-                List<Floor> floors = null;
+                floors = null;
 
                 if (!Command.ValidateLevel(FlrName, Command.uiDoc, out floors))
                 {
@@ -588,11 +589,6 @@ namespace CalcFittingsPlugin
             }
         }
 
-        private async Task viz()
-        {
-            Command.VisualizationEvent.Raise();
-        }
-
         private void ArmTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             string newText = "";
@@ -619,14 +615,65 @@ namespace CalcFittingsPlugin
             }
         }
 
-        private void Button_Click(object sender, RoutedEventArgs e)
+        private void Button_Click_2D(object sender, RoutedEventArgs e)
         {
 
         }
 
-        private void Button_Click_2D(object sender, RoutedEventArgs e)
+        private async void ApplyBtn_Click(object sender, RoutedEventArgs e)
         {
+            //Запускаем ProgressBar и визуализацию
 
+            ProgressWindow progressWindow = new ProgressWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Topmost = true,
+                Title = "Визуализация армирования"
+            };
+
+            try
+            {
+                if(SolutionsView.SelectedItem == null)
+                {
+                    MessageBox.Show("Для визуализации решения нужно выделить его в таблице.",
+                        "Визуализация", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                this.IsEnabled = false;
+
+                progressWindow.Show();
+
+                progressWindow.UpdateProgress(0, "Визуализация зон");
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения для 3D."));
+
+                Command.VisualizationHandler.Solution = bestSolutions[SolutionsView.SelectedIndex]; // Первое решение
+                Command.VisualizationHandler.Floors = floors;
+
+                // Запускаем визуализацию
+                Command.VisualizationEvent.Raise();
+
+                progressWindow.UpdateProgress(100, "Визуализация завершена");
+
+                await Task.Delay(500);
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения для 3D завершена."));
+            }
+            catch
+            {
+                MessageBox.Show("Не удалось выполнить визуализацию зон, проверьте правильность 3D модели и выполните перерасчет.",
+                    "Визуализация", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось выполнить визуализацию решения в 3D модели."));
+            }
+            finally
+            {
+                progressWindow.SafeClose();
+                this.Focus();
+                this.Activate();
+                this.IsEnabled = true;
+            }
         }
     }
 }

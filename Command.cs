@@ -254,6 +254,9 @@ namespace CalcFittingsPlugin
             View3D view3D = GetOrCreate3DView(doc);
             uiDoc.ActiveView = view3D;
 
+            uiDoc.Selection.SetElementIds(Floors.Select(f => f.Id).ToList());
+            uiDoc.ShowElements(Floors.Select(f => f.Id).ToList());
+
             try
             {
                 // Если нет активной транзакции, используем обычную Transaction
@@ -287,7 +290,7 @@ namespace CalcFittingsPlugin
 
         private void ExecuteVisualization(Document doc, UIDocument uiDoc, View3D view3D)
         {
-            CleanPreviousVisualization(doc);
+            CleanPreviousVisualization(doc, Floors);
 
 
             foreach (var zone in Solution.Zones)
@@ -306,10 +309,10 @@ namespace CalcFittingsPlugin
             double elevation = topFace.Origin.Z;
 
             // Границы зоны
-            CreateZoneBoundary(doc, zone, elevation);
+            CreateZoneBoundary(doc, zone, elevation, floor.Id);
 
             // Арматура
-            CreateRebarVisualization(doc, zone, elevation);
+            CreateRebarVisualization(doc, zone, elevation, floor.Id);
 
             // Текстовая аннотация
             //CreateZoneAnnotation(doc, view, zone, elevation, zoneNumber);
@@ -349,7 +352,7 @@ namespace CalcFittingsPlugin
             return topFace;
         }
 
-        private void CreateZoneBoundary(Document doc, ZoneSolution zone, double elevation)
+        private void CreateZoneBoundary(Document doc, ZoneSolution zone, double elevation, ElementId floorId)
         {
             try
             {
@@ -384,7 +387,9 @@ namespace CalcFittingsPlugin
                 // Создаем DirectShape
                 DirectShape boundaryShape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
                 boundaryShape.SetShape(geometryObjects); // Теперь передаем правильный тип
-                boundaryShape.Name = "Zone Boundary";
+                boundaryShape.Name = $"Zone Boundary_{floorId}";
+
+                SetFloorIdParameter(boundaryShape, floorId);
 
                 // Настраиваем графическое отображение
                 OverrideGraphicSettings ogs = new OverrideGraphicSettings()
@@ -400,7 +405,7 @@ namespace CalcFittingsPlugin
             }
         }
 
-        private void CreateRebarVisualization(Document doc, ZoneSolution zone, double elevation)
+        private void CreateRebarVisualization(Document doc, ZoneSolution zone, double elevation, ElementId floorId)
         {
             try
             {
@@ -428,7 +433,9 @@ namespace CalcFittingsPlugin
 
                 DirectShape rebarShape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
                 rebarShape.SetShape(geomObjs);
-                rebarShape.Name = "Rebar Visualization";
+                rebarShape.Name = $"Rebar Visualization_{floorId}";
+
+                SetFloorIdParameter(rebarShape, floorId);
 
                 OverrideGraphicSettings ogs = new OverrideGraphicSettings()
                     .SetProjectionLineColor(new Color(255, 0, 0))
@@ -440,6 +447,20 @@ namespace CalcFittingsPlugin
             catch (Exception ex)
             {
                 TaskDialog.Show("Ошибка создания арматуры", ex.Message);
+            }
+        }
+
+        private void SetFloorIdParameter(Element element, ElementId floorId)
+        {
+            try
+            {
+                // Используем User-параметр для хранения ID плиты
+                element.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS).Set(floorId.ToString());
+            }
+            catch
+            {
+                // Альтернативный вариант, если параметр недоступен
+                element.get_Parameter(BuiltInParameter.ALL_MODEL_MARK).Set(floorId.ToString());
             }
         }
 
@@ -455,16 +476,36 @@ namespace CalcFittingsPlugin
             TextNote.Create(doc, view.Id, center, text, GetDefaultTextNoteType(doc).Id);
         }
 
-        private void CleanPreviousVisualization(Document doc)
+        private void CleanPreviousVisualization(Document doc, List<Floor> targetFloors)
         {
             try
             {
-                // Удаляем все DirectShape'ы, созданные плагином
-                var toDelete = new FilteredElementCollector(doc)
+             // Получаем ID целевых плит
+                var targetFloorIds = targetFloors.Select(f => f.Id.IntegerValue).ToList();
+
+                // Собираем все элементы визуализации
+                var allVizElements = new FilteredElementCollector(doc)
                     .OfClass(typeof(DirectShape))
-                    .Where(e => e.Name == "Zone Boundary" || e.Name == "Rebar Visualization")
-                    .Select(e => e.Id)
+                    .Where(e => e.Name.StartsWith("Zone Boundary_") || e.Name.StartsWith("Rebar Visualization_"))
                     .ToList();
+
+                // Фильтруем элементы, связанные с целевыми плитами
+                var toDelete = new List<ElementId>();
+
+                foreach (var element in allVizElements)
+                {
+                    // Получаем ID плиты из имени элемента
+                    var nameParts = element.Name.Split('_');
+                    if (nameParts.Length < 2) continue;
+
+                    if (int.TryParse(nameParts.Last(), out int floorIdValue))
+                    {
+                        if (targetFloorIds.Contains(floorIdValue))
+                        {
+                            toDelete.Add(element.Id);
+                        }
+                    }
+                }
 
                 if (toDelete.Count > 0)
                 {
