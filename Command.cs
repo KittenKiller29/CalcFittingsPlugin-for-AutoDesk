@@ -312,7 +312,7 @@ namespace CalcFittingsPlugin
             CreateRebarVisualization(doc, zone, elevation);
 
             // Текстовая аннотация
-            CreateZoneAnnotation(doc, view, zone, elevation, zoneNumber);
+            //CreateZoneAnnotation(doc, view, zone, elevation, zoneNumber);
         }
 
         private PlanarFace GetTopFaceOfFloor(Floor floor)
@@ -500,25 +500,6 @@ namespace CalcFittingsPlugin
             return view;
         }
 
-        private CurveElement CreateModelCurve(Document doc, Curve curve, string styleName, double elevation)
-        {
-            // 1. Создаем плоскость эскиза НА НУЖНОЙ ВЫСОТЕ (elevation)
-            Plane plane = Plane.CreateByNormalAndOrigin(XYZ.BasisZ, new XYZ(0, 0, elevation));
-            SketchPlane sketchPlane = SketchPlane.Create(doc, plane);
-
-            // 2. Создаем ModelCurve
-            ModelCurve modelCurve = doc.Create.NewModelCurve(curve, sketchPlane);
-
-            // 3. Настраиваем стиль (если нужно)
-            GraphicsStyle style = GetLineStyle(doc, styleName);
-            if (style != null)
-            {
-                modelCurve.LineStyle = style;
-            }
-
-            return modelCurve;
-        }
-
         private static GraphicsStyle GetLineStyle(Document doc, string styleName)
         {
             // Пытаемся найти существующий стиль
@@ -659,10 +640,10 @@ namespace CalcFittingsPlugin
         public List<double> StandardLengths { get; set; }
         public double[] BasicReinforcement { get; set; }
         public List<Opening> Openings { get; set; } = new List<Opening>();
-        public int PopulationSize { get; set; } = 50;
-        public int Generations { get; set; } = 1000;
+        public int PopulationSize { get; set; } = 100;
+        public int Generations { get; set; } = 2000;
         public double MutationRate { get; set; } = 0.3;
-        public int EliteCount { get; set; } = 5;
+        public int EliteCount { get; set; } = 10;
         public double MinRebarPerDirection { get; set; } = 2; // Минимум 2 стержня в каждом направлении
 
         private static readonly Random Random = new Random();
@@ -701,25 +682,13 @@ namespace CalcFittingsPlugin
 
                 foreach (var nodes in slabsNodes.Where(n => n?.Count > 0))
                 {
-                    List<List<Node>> clusters;
-                    switch (i % 3)
-                    {
-                        case 0:
-                            clusters = ClusterByProximity(nodes, 2.0);
-                            break;
-                        case 1:
-                            clusters = ClusterByGrid(nodes, 3.0);
-                            break;
-                        default:
-                            clusters = ClusterByLoad(nodes);
-                            break;
-                    }
-
+                    // Применяем улучшенную кластеризацию
+                    var clusters = ClusterNodes(nodes);
                     clusters = OptimizeZoneShapes(clusters, Openings);
 
                     foreach (var cluster in clusters)
                     {
-                        var zone = OptimizeZone(cluster);
+                        var zone = FindOptimalZone(cluster);
                         if (zone != null && IsValidZone(zone))
                         {
                             solution.Zones.Add(zone);
@@ -731,6 +700,107 @@ namespace CalcFittingsPlugin
             }
 
             return population;
+        }
+
+        private ZoneSolution FindOptimalZone(List<Node> nodes)
+        {
+            var boundary = CalculateBoundary(nodes);
+            ZoneSolution bestSolution = CreateZoneSolution(nodes, boundary);
+
+            // Тестируем разные варианты расширения зоны
+            for (double padding = 0.2; padding <= 2.0; padding += 0.2)
+            {
+                var testBoundary = new Rectangle(
+                    boundary.X - padding,
+                    boundary.Y - padding,
+                    boundary.Width + 2 * padding,
+                    boundary.Height + 2 * padding
+                );
+
+                // Пропускаем варианты, пересекающиеся с отверстиями
+                if (Openings.Any(o => RectanglesIntersect(testBoundary, o.Boundary)))
+                    continue;
+
+                var testSolution = CreateZoneSolution(nodes, testBoundary);
+                if (testSolution != null && testSolution.TotalCost < bestSolution.TotalCost)
+                    bestSolution = testSolution;
+            }
+
+            return bestSolution;
+        }
+
+        private List<List<Node>> MergeClusters(List<List<Node>> clusters, int minSize)
+        {
+            var merged = clusters.Where(c => c.Count >= minSize).ToList();
+            var smallClusters = clusters.Where(c => c.Count < minSize).ToList();
+
+            foreach (var smallCluster in smallClusters)
+            {
+                var nearestCluster = FindNearestCluster(smallCluster, merged);
+
+                // Более гибкие условия объединения
+                if (nearestCluster != null &&
+                    (CalculateDistanceBetweenClusters(smallCluster, nearestCluster) < 4.0 ||
+                     Math.Abs(smallCluster[0].MedianLoad - nearestCluster[0].MedianLoad) < 2.0))
+                {
+                    var combined = nearestCluster.Concat(smallCluster).ToList();
+                    merged.Remove(nearestCluster);
+                    merged.Add(combined);
+                }
+                else
+                {
+                    // Если не нашли подходящий кластер, создаем новый
+                    merged.Add(smallCluster);
+                }
+            }
+
+            return merged;
+        }
+
+        private double CalculateDistanceBetweenClusters(List<Node> cluster1, List<Node> cluster2)
+        {
+            var center1 = new XYZ(
+                cluster1.Average(n => n.X),
+                cluster1.Average(n => n.Y),
+                0);
+
+            var center2 = new XYZ(
+                cluster2.Average(n => n.X),
+                cluster2.Average(n => n.Y),
+                0);
+
+            return center1.DistanceTo(center2);
+        }
+
+        private List<List<Node>> ClusterNodes(List<Node> nodes)
+        {
+            if (nodes == null || nodes.Count == 0)
+                return new List<List<Node>>();
+
+            // 1. Первичная кластеризация по близости с увеличенным расстоянием
+            var spatialClusters = ClusterByProximity(nodes, maxDistance: 3.0);
+
+            // 2. Разделение по нагрузке с учетом медианного значения
+            var result = new List<List<Node>>();
+            foreach (var cluster in spatialClusters)
+            {
+                if (cluster.Count == 0) continue;
+
+                double medianLoad = CalculateMedianLoad(cluster);
+                var highLoadNodes = cluster
+                    .Where(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max() > medianLoad * 1.2)
+                    .ToList();
+
+                var lowLoadNodes = cluster
+                    .Where(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max() <= medianLoad * 1.2)
+                    .ToList();
+
+                if (highLoadNodes.Count > 0) result.Add(highLoadNodes);
+                if (lowLoadNodes.Count > 0) result.Add(lowLoadNodes);
+            }
+
+            // 3. Объединение мелких кластеров с более гибкими условиями
+            return MergeClusters(result, minSize: 5);
         }
 
         private bool IsValidZone(ZoneSolution zone)
@@ -803,22 +873,44 @@ namespace CalcFittingsPlugin
             if (Random.NextDouble() > MutationRate || mutated.Zones.Count == 0)
                 return mutated;
 
+            // Добавляем новый тип мутации - объединение зон
+            if (Random.NextDouble() < 0.3 && mutated.Zones.Count > 1)
+            {
+                int idx1 = Random.Next(mutated.Zones.Count);
+                int idx2 = FindNearestZone(mutated.Zones, idx1);
+
+                if (idx2 >= 0)
+                {
+                    var mergedNodes = mutated.Zones[idx1].Nodes
+                        .Concat(mutated.Zones[idx2].Nodes)
+                        .ToList();
+
+                    var mergedZone = FindOptimalZone(mergedNodes);
+                    if (mergedZone != null && IsValidZone(mergedZone))
+                    {
+                        mutated.Zones.RemoveAt(Math.Max(idx1, idx2));
+                        mutated.Zones.RemoveAt(Math.Min(idx1, idx2));
+                        mutated.Zones.Add(mergedZone);
+                        return mutated;
+                    }
+                }
+            }
+
+            // Остальные типы мутаций (прежние)
             int zoneIndex = Random.Next(mutated.Zones.Count);
             var zone = mutated.Zones[zoneIndex];
 
             switch (Random.Next(3))
             {
-                case 0: // Изменение размеров зоны
+                case 0:
                     mutated.Zones[zoneIndex] = ResizeZone(zone);
                     break;
-
-                case 1: // Разделение зоны
+                case 1:
                     mutated.Zones.RemoveAt(zoneIndex);
                     var split = SplitCluster(zone.Nodes);
-                    mutated.Zones.AddRange(split.Select(OptimizeZone).Where(z => z != null && IsValidZone(z)));
+                    mutated.Zones.AddRange(split.Select(FindOptimalZone).Where(z => z != null && IsValidZone(z)));
                     break;
-
-                case 2: // Изменение типа арматуры
+                case 2:
                     var newRebar = GetRandomRebarConfig();
                     if (newRebar != null)
                     {
@@ -832,6 +924,44 @@ namespace CalcFittingsPlugin
             }
 
             return mutated;
+        }
+
+        private int FindNearestZone(List<ZoneSolution> zones, int referenceIndex)
+        {
+            if (zones.Count < 2) return -1;
+
+            var referenceZone = zones[referenceIndex];
+            double minDistance = double.MaxValue;
+            int nearestIndex = -1;
+
+            for (int i = 0; i < zones.Count; i++)
+            {
+                if (i == referenceIndex) continue;
+
+                double distance = CalculateDistanceBetweenZones(referenceZone, zones[i]);
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    nearestIndex = i;
+                }
+            }
+
+            return nearestIndex;
+        }
+
+        private double CalculateDistanceBetweenZones(ZoneSolution zone1, ZoneSolution zone2)
+        {
+            var center1 = new XYZ(
+                zone1.Boundary.X + zone1.Boundary.Width / 2,
+                zone1.Boundary.Y + zone1.Boundary.Height / 2,
+                0);
+
+            var center2 = new XYZ(
+                zone2.Boundary.X + zone2.Boundary.Width / 2,
+                zone2.Boundary.Y + zone2.Boundary.Height / 2,
+                0);
+
+            return center1.DistanceTo(center2);
         }
 
         private RebarConfig GetRandomRebarConfig()
@@ -945,53 +1075,6 @@ namespace CalcFittingsPlugin
             return clusters;
         }
 
-        private List<List<Node>> ClusterByGrid(List<Node> nodes, double gridSize)
-        {
-            var grid = new Dictionary<(int, int), List<Node>>();
-
-            foreach (var node in nodes)
-            {
-                int xCell = (int)(node.X / gridSize);
-                int yCell = (int)(node.Y / gridSize);
-                var key = (xCell, yCell);
-
-                if (!grid.ContainsKey(key)) grid[key] = new List<Node>();
-                grid[key].Add(node);
-            }
-
-            return grid.Values.Where(c => c.Count >= 3).ToList();
-        }
-
-        private List<List<Node>> ClusterByLoad(List<Node> nodes)
-        {
-            if (nodes.Count == 0)
-                return new List<List<Node>>();
-
-            // 1. Пространственная кластеризация
-            var spatialClusters = ClusterByProximity(nodes, maxDistance: 2.0);
-
-            // 2. Разделение по нагрузке
-            var result = new List<List<Node>>();
-            foreach (var cluster in spatialClusters)
-            {
-                if (cluster.Count == 0) continue;
-
-                double medianLoad = CalculateMedianLoad(cluster);
-
-                var highLoadNodes = cluster
-                    .Where(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max() > medianLoad)
-                    .ToList();
-
-                var lowLoadNodes = cluster.Except(highLoadNodes).ToList();
-
-                if (highLoadNodes.Count > 0) result.Add(highLoadNodes);
-                if (lowLoadNodes.Count > 0) result.Add(lowLoadNodes);
-            }
-
-            // 3. Объединение мелких кластеров
-            return MergeSmallClusters(result, minSize: 3);
-        }
-
         private double CalculateMedianLoad(List<Node> nodes)
         {
             var loads = nodes
@@ -1003,34 +1086,6 @@ namespace CalcFittingsPlugin
             return (loads.Count % 2 != 0) ?
                 loads[midIndex] :
                 (loads[midIndex - 1] + loads[midIndex]) / 2.0;
-        }
-
-        private List<List<Node>> MergeSmallClusters(List<List<Node>> clusters, int minSize)
-        {
-            var merged = new List<List<Node>>();
-            var largeClusters = clusters.Where(c => c.Count >= minSize).ToList();
-            var smallClusters = clusters.Where(c => c.Count < minSize).ToList();
-
-            merged.AddRange(largeClusters);
-
-            foreach (var smallCluster in smallClusters)
-            {
-                var nearestCluster = FindNearestCluster(smallCluster, merged);
-
-                if (nearestCluster != null && ShouldMerge(nearestCluster, smallCluster))
-                {
-                    var combinedCluster = nearestCluster.Concat(smallCluster).ToList();
-                    var updatedCluster = RecalculateCluster(combinedCluster);
-                    merged.Remove(nearestCluster);
-                    merged.Add(updatedCluster);
-                }
-                else
-                {
-                    merged.Add(RecalculateCluster(smallCluster));
-                }
-            }
-
-            return merged;
         }
 
         private bool ShouldMerge(List<Node> cluster1, List<Node> cluster2)

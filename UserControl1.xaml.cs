@@ -34,7 +34,8 @@ namespace CalcFittingsPlugin
         static private DataTable Length;
         static private string FlrName;
         static private DataTable FitDataTable;
-
+        static private DataTable ZonesTable;
+        static private List<ReinforcementSolution> bestSolutions;
 
         public UserControl1()
         {
@@ -44,6 +45,7 @@ namespace CalcFittingsPlugin
             DiamCost = new DataTable();
             Length = new DataTable();
             FitDataTable = new DataTable();
+            ZonesTable = new DataTable();
 
             InitializeDataTables();
 
@@ -91,6 +93,14 @@ namespace CalcFittingsPlugin
             FitDataTable.Columns.Add(Tools.HeadersTemplate[7], typeof(double));
             FitDataTable.Columns.Add(Tools.HeadersTemplate[8], typeof(double));
             FitDataTable.Columns.Add(Tools.HeadersTemplate[9], typeof(double));
+
+            //Заполняем таблицу зон
+            ZonesTable.Columns.Add("Count", typeof(int));
+            ZonesTable.Columns.Add("RebLength", typeof(double));
+            ZonesTable.Columns.Add("RebCost", typeof(int));
+            ZonesTable.Columns.Add("Num", typeof(int));
+            SolutionsView.ItemsSource = ZonesTable.DefaultView;
+
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -174,6 +184,7 @@ namespace CalcFittingsPlugin
                 {
                     ApplyBtn.IsEnabled = false;
                     CancelBtn.IsEnabled = false;
+                    ZonesTable.Clear();
 
                     //Сбрасываем модель к исходной, удаляем все текущие решения
                     //to-do
@@ -366,6 +377,10 @@ namespace CalcFittingsPlugin
                 Title = "Расчет зон дополнительного армирования"
             };
 
+            ZonesTable.Clear();
+            ApplyBtn.IsEnabled = false;
+            CancelBtn.IsEnabled = false;
+
             ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcStart));
 
             try
@@ -374,7 +389,7 @@ namespace CalcFittingsPlugin
 
                 List<Floor> floors = null;
 
-                if(!Command.ValidateLevel(FlrName, Command.uiDoc, out floors))
+                if (!Command.ValidateLevel(FlrName, Command.uiDoc, out floors))
                 {
                     throw new Exception();
                 }
@@ -495,23 +510,42 @@ namespace CalcFittingsPlugin
 
 
                 //Запускаем расчетный алгоритм
-                var bestSolutions = optimizer.FindBestSolutions(slabsNodes, NumOfSol);
+                bestSolutions = optimizer.FindBestSolutions(slabsNodes, NumOfSol);
 
                 progressWindow.UpdateProgress(100, "Завершено");
                 await Task.Delay(1000); // Даем время увидеть 100%
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Получено решений " + bestSolutions.Count.ToString()));
+                if (bestSolutions == null)
+                {
+                    MessageBox.Show("Не удалось получить ни одного решения. Проверьте правильность заданных параметров.", "Расчет", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    throw new Exception();
+                }
+
+                //ConsoleLog.AppendText(Tools.CreateLogMessage("Получено решений " + bestSolutions.Count.ToString()));
+
+                int num = 1;
 
                 foreach (var solution in bestSolutions)
                 {
-                    ConsoleLog.AppendText(Tools.CreateLogMessage("Решение стоимостью "+ solution.TotalCost.ToString()));
-                    ConsoleLog.AppendText(Tools.CreateLogMessage("Всего зон " + solution.Zones.Count.ToString()));
+                    //ConsoleLog.AppendText(Tools.CreateLogMessage("Решение стоимостью "+ solution.TotalCost.ToString()));
+                    //ConsoleLog.AppendText(Tools.CreateLogMessage("Всего зон " + solution.Zones.Count.ToString()));
                     double length = 0;
+
                     foreach (var zone in solution.Zones)
                     {
                         length += zone.TotalLength;
                     }
-                    ConsoleLog.AppendText(Tools.CreateLogMessage("Общая длина арматуры " + length));
+                    //ConsoleLog.AppendText(Tools.CreateLogMessage("Общая длина арматуры " + length));
+
+                    DataRow newRow = ZonesTable.Rows.Add();
+                    newRow["Count"] = solution.Zones.Count;
+                    newRow["RebLength"] = length;
+                    newRow["RebCost"] = solution.TotalCost;
+                    newRow["Num"] = num;
+
+                    num++;
+
+
                     //ConsoleLog.AppendText(Tools.CreateLogMessage("Длина арматуры " + solution.));
                     /*foreach (var zone in solution.Zones)
                     {
@@ -521,25 +555,28 @@ namespace CalcFittingsPlugin
                     }*/
                 }
 
-                if (bestSolutions.Count > 0 && Command.VisualizationEvent != null)
-                {
-                    Command.VisualizationHandler.Solution = bestSolutions[0]; // Первое решение
-                    Command.VisualizationHandler.Floors = floors;
-                    await Task.Delay(500);
-                    // Запускаем визуализацию
-                    //Command.VisualizationEvent.Raise();
-                    await viz();
-                    ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация запущена"));
-                }
 
+                /* if (bestSolutions.Count > 0 && Command.VisualizationEvent != null)
+                 {
+                     Command.VisualizationHandler.Solution = bestSolutions[0]; // Первое решение
+                     Command.VisualizationHandler.Floors = floors;
+                     await Task.Delay(500);
+                     // Запускаем визуализацию
+                     //Command.VisualizationEvent.Raise();
+                     await viz();
+                     ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация запущена"));
+                 } */
 
+                ApplyBtn.IsEnabled = true;
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc));
 
             }
             catch(Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                //MessageBox.Show(ex.Message);
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcErr));
+                ApplyBtn.IsEnabled = false;
+                CancelBtn.IsEnabled = false;
             }
             finally
             {
@@ -580,6 +617,16 @@ namespace CalcFittingsPlugin
                     break;
                 }
             }
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void Button_Click_2D(object sender, RoutedEventArgs e)
+        {
+
         }
     }
 }

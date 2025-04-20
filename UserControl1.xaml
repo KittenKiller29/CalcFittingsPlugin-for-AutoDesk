@@ -20,6 +20,63 @@
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
 
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridRow">
+                        <Border x:Name="DGR_Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <SelectiveScrollingGrid>
+                                <SelectiveScrollingGrid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </SelectiveScrollingGrid.ColumnDefinitions>
+                                <SelectiveScrollingGrid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </SelectiveScrollingGrid.RowDefinitions>
+                                <DataGridCellsPresenter Grid.Column="1"
+                                                        ItemsPanel="{TemplateBinding ItemsPanel}"
+                                                        SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                <DataGridDetailsPresenter Grid.Column="1"
+                                                          Grid.Row="1"
+                                                          SelectiveScrollingGrid.SelectiveScrollingOrientation="{Binding AreRowDetailsFrozen, ConverterParameter={x:Static SelectiveScrollingOrientation.Vertical}, Converter={x:Static DataGrid.RowDetailsScrollingConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                                          Visibility="{TemplateBinding DetailsVisibility}"/>
+                                <DataGridRowHeader Grid.RowSpan="2"
+                                                   SelectiveScrollingGrid.SelectiveScrollingOrientation="Vertical"
+                                                   Visibility="{Binding HeadersVisibility, ConverterParameter={x:Static DataGridHeadersVisibility.Row}, Converter={x:Static DataGrid.HeadersVisibilityConverter}, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"/>
+                            </SelectiveScrollingGrid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- Подсветка активной строки -->
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#FFE3F2FF"/>
+                                <!-- Синий цвет -->
+                                <Setter Property="Foreground" Value="Black"/>
+                                <!-- Цвет текста -->
+                            </Trigger>
+                            <!-- Подсветка при наведении -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FFE3F2FF"/>
+                                <!-- Синий цвет -->
+                            </Trigger>
+                            <!-- Сброс цвета при потере выделения -->
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter Property="Background" Value="White"/>
+                                <!-- Белый цвет -->
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Стиль для кнопок -->
         <Style TargetType="Button">
             <Setter Property="Background" Value="White"/>
@@ -75,6 +132,7 @@
                     <ColumnDefinition Width="130"/>
                     <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="130"/>
+                    
                     <ColumnDefinition Width="172"/>
                     <ColumnDefinition Width="130"/>
                 </Grid.ColumnDefinitions>
@@ -136,16 +194,29 @@
                         <Label Content="Значение основного армирования, см^2/м." Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
                         <TextBox Name="ArmTextBox" Width="152" Margin="69,1,0,18" TextChanged="ArmTextBox_TextChanged" PreviewTextInput="ArmTextBox_PreviewTextInput"/>
                     </StackPanel>
-                    <ListView Margin="0,-5,20,0" Height="261" BorderBrush="Gray">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="№" Width="40" DisplayMemberBinding="{Binding Num}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                <GridViewColumn Header="Длина всей арматуры, мм." Width="152" DisplayMemberBinding="{Binding Length}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                <GridViewColumn Header="Длина обрезков, мм." Width="152" DisplayMemberBinding="{Binding Cut}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                                <GridViewColumn Header="Общая цена, руб." Width="152" DisplayMemberBinding="{Binding Cost}" CellTemplate="{StaticResource CellTemplateWithBorder}"/>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
+
+                    <DataGrid Margin="0,-5,20,0" Height="261" BorderBrush="Gray" Name="SolutionsView" AutoGenerateColumns="False"
+                                  HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
+                                  CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
+                                  RowStyle="{StaticResource {x:Type DataGridRow}}"
+                                  SelectionMode="Single">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="№" Width="40" Binding="{Binding Num}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Количество зон" Width="103" Binding="{Binding Count}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Длина арматуры, м." Width="123" Binding="{Binding RebLength}" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Цена решения, руб." Width="133" Binding="{Binding RebCost}" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="2D План" Width="99">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Отобразить" 
+                                            Click="Button_Click_2D"
+                                            Command="{Binding DataContext.MyCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </StackPanel>
             </Border>
 
