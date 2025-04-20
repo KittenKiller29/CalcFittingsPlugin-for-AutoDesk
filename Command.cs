@@ -302,8 +302,8 @@ namespace CalcFittingsPlugin
 
             // Получаем уровень плиты
             Floor floor = Floors[zone.Nodes[0].SlabId];
-            Level level = doc.GetElement(floor.LevelId) as Level;
-            double elevation = level.Elevation + 0.1; // Над плитой
+            PlanarFace topFace = GetTopFaceOfFloor(floor);
+            double elevation = topFace.Origin.Z;
 
             // Границы зоны
             CreateZoneBoundary(doc, zone, elevation);
@@ -315,6 +315,40 @@ namespace CalcFittingsPlugin
             CreateZoneAnnotation(doc, view, zone, elevation, zoneNumber);
         }
 
+        private PlanarFace GetTopFaceOfFloor(Floor floor)
+        {
+            Options geomOptions = new Options();
+            geomOptions.ComputeReferences = true;
+            GeometryElement geomElem = floor.get_Geometry(geomOptions);
+
+            PlanarFace topFace = null;
+            double maxElevation = double.MinValue;
+
+            foreach (GeometryObject geomObj in geomElem)
+            {
+                if (geomObj is Solid solid)
+                {
+                    foreach (Face face in solid.Faces)
+                    {
+                        if (face is PlanarFace planarFace)
+                        {
+                            XYZ normal = planarFace.FaceNormal;
+                            if (normal.Z > 0.9) // Верхняя грань
+                            {
+                                double currentElevation = planarFace.Origin.Z;
+                                if (currentElevation > maxElevation)
+                                {
+                                    maxElevation = currentElevation;
+                                    topFace = planarFace;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return topFace;
+        }
+
         private void CreateZoneBoundary(Document doc, ZoneSolution zone, double elevation)
         {
             try
@@ -322,22 +356,30 @@ namespace CalcFittingsPlugin
                 // Создаем список геометрических объектов (а не просто кривых)
                 List<GeometryObject> geometryObjects = new List<GeometryObject>();
 
+                double xMin = zone.Boundary.X;
+                double yMin = zone.Boundary.Y;
+                double xMax = xMin + zone.Boundary.Width;
+                double yMax = yMin + zone.Boundary.Height;
+
+                // Создаем кривые границы с визуальным смещением наружу
+                double lineOffset = 0.05; 
+
                 // Добавляем кривые границы зоны
                 geometryObjects.Add(Line.CreateBound(
-                    new XYZ(zone.Boundary.X, zone.Boundary.Y, elevation),
-                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y, elevation)));
+                    new XYZ(xMin - lineOffset, yMin - lineOffset, elevation),
+                    new XYZ(xMax + lineOffset, yMin - lineOffset, elevation)));
 
                 geometryObjects.Add(Line.CreateBound(
-                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y, elevation),
-                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+                    new XYZ(xMax + lineOffset, yMin - lineOffset, elevation),
+                    new XYZ(xMax + lineOffset, yMax + lineOffset, elevation)));
 
                 geometryObjects.Add(Line.CreateBound(
-                    new XYZ(zone.Boundary.X + zone.Boundary.Width, zone.Boundary.Y + zone.Boundary.Height, elevation),
-                    new XYZ(zone.Boundary.X, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+                    new XYZ(xMax + lineOffset, yMax + lineOffset, elevation),
+                    new XYZ(xMin - lineOffset, yMax + lineOffset, elevation)));
 
                 geometryObjects.Add(Line.CreateBound(
-                    new XYZ(zone.Boundary.X, zone.Boundary.Y + zone.Boundary.Height, elevation),
-                    new XYZ(zone.Boundary.X, zone.Boundary.Y, elevation)));
+                    new XYZ(xMin - lineOffset, yMax + lineOffset, elevation),
+                    new XYZ(xMin - lineOffset, yMin - lineOffset, elevation)));
 
                 // Создаем DirectShape
                 DirectShape boundaryShape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
@@ -347,6 +389,7 @@ namespace CalcFittingsPlugin
                 // Настраиваем графическое отображение
                 OverrideGraphicSettings ogs = new OverrideGraphicSettings()
                     .SetProjectionLineColor(new Color(0, 255, 0)) // Зеленый цвет
+                    .SetSurfaceTransparency(0)
                     .SetProjectionLineWeight(1); // Толщина линии
 
                 doc.ActiveView.SetElementOverrides(boundaryShape.Id, ogs);
@@ -363,21 +406,24 @@ namespace CalcFittingsPlugin
             {
                 double spacing = zone.Spacing / 1000.0;
                 List<GeometryObject> geomObjs = new List<GeometryObject>();
+                double offset = ((zone.Boundary.Height / spacing) - Math.Truncate(zone.Boundary.Height / spacing)) * spacing / 2;
 
                 // Вертикальные стержни
                 for (double y = zone.Boundary.Y; y <= zone.Boundary.Y + zone.Boundary.Height; y += spacing)
                 {
                     geomObjs.Add(Line.CreateBound(
-                        new XYZ(zone.Boundary.X, y, elevation),
-                        new XYZ(zone.Boundary.X + zone.Boundary.Width, y, elevation)));
+                        new XYZ(zone.Boundary.X, y + offset, elevation),
+                        new XYZ(zone.Boundary.X + zone.Boundary.Width, y + offset, elevation)));
                 }
+
+                offset = ((zone.Boundary.Width / spacing) - Math.Truncate(zone.Boundary.Width / spacing)) * spacing / 2;
 
                 // Горизонтальные стержни
                 for (double x = zone.Boundary.X; x <= zone.Boundary.X + zone.Boundary.Width; x += spacing)
                 {
                     geomObjs.Add(Line.CreateBound(
-                        new XYZ(x, zone.Boundary.Y, elevation),
-                        new XYZ(x, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+                        new XYZ(x + offset, zone.Boundary.Y, elevation),
+                        new XYZ(x + offset, zone.Boundary.Y + zone.Boundary.Height, elevation)));
                 }
 
                 DirectShape rebarShape = DirectShape.CreateElement(doc, new ElementId(BuiltInCategory.OST_GenericModel));
@@ -386,7 +432,8 @@ namespace CalcFittingsPlugin
 
                 OverrideGraphicSettings ogs = new OverrideGraphicSettings()
                     .SetProjectionLineColor(new Color(255, 0, 0))
-                    .SetProjectionLineWeight(2);
+                    .SetSurfaceTransparency(0)
+                    .SetProjectionLineWeight(1);
 
                 doc.ActiveView.SetElementOverrides(rebarShape.Id, ogs);
             }
