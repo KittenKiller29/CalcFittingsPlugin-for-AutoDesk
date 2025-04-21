@@ -615,9 +615,49 @@ namespace CalcFittingsPlugin
             }
         }
 
-        private void Button_Click_2D(object sender, RoutedEventArgs e)
+        private async void Button_Click_2D(object sender, RoutedEventArgs e)
         {
+            //Визуализируем зоны армирования на 2д плане
+            ProgressWindow progressWindow = new ProgressWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Topmost = true,
+                Title = "Визуализация армирования"
+            };
+                this.IsEnabled = false;
+            try
+            {
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения на 2D плане"));
+                progressWindow.Show();
+                progressWindow.UpdateProgress(0, "Визуализация зон");
+                await Task.Delay(100);
 
+                Command.PlanarVisualizationHandler.Solution = bestSolutions[SolutionsView.SelectedIndex];
+                Command.PlanarVisualizationHandler.Floors = floors;
+
+                // Запускаем визуализацию
+                Command.PlanarVisualizationEvent.Raise();
+
+                progressWindow.UpdateProgress(100, "Визуализация зон завершена");
+                await Task.Delay(100);
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения на 2D плане завершена"));
+            }
+            catch
+            {
+                MessageBox.Show("Не удалось выполнить визуализацию зон на 2D плане, проверьте правильность модели и выполните перерасчет.",
+                    "Визуализация", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось выполнить визуализацию решения на 2D плане"));
+            }
+            finally
+            {
+                progressWindow.SafeClose();
+                this.Focus();
+                this.Activate();
+                this.IsEnabled = true;
+
+            }
         }
 
         private async void ApplyBtn_Click(object sender, RoutedEventArgs e)
@@ -647,7 +687,7 @@ namespace CalcFittingsPlugin
 
                 progressWindow.UpdateProgress(0, "Визуализация зон");
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения для 3D."));
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения для 3D"));
 
                 Command.VisualizationHandler.Solution = bestSolutions[SolutionsView.SelectedIndex]; 
                 Command.VisualizationHandler.Floors = floors;
@@ -659,7 +699,7 @@ namespace CalcFittingsPlugin
 
                 await Task.Delay(500);
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения для 3D завершена."));
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения для 3D завершена"));
 
                 CancelBtn.IsEnabled = true;
             }
@@ -667,7 +707,7 @@ namespace CalcFittingsPlugin
             {
                 MessageBox.Show("Не удалось выполнить визуализацию зон, проверьте правильность 3D модели и выполните перерасчет.",
                     "Визуализация", MessageBoxButton.OK, MessageBoxImage.Warning);
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось выполнить визуализацию решения в 3D модели."));
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось выполнить визуализацию решения в 3D модели"));
             }
             finally
             {

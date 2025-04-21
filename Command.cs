@@ -24,6 +24,10 @@ namespace CalcFittingsPlugin
         public static ExternalEvent VisualizationEvent { get; set; }
         public static CleanHandler CleanHandler { get; set; }
         public static ExternalEvent CleanEvent { get; set; }
+        public static PlanarVisualizationHandler PlanarVisualizationHandler { get; set; }
+        public static ExternalEvent PlanarVisualizationEvent { get; set; }
+
+
 
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -35,6 +39,9 @@ namespace CalcFittingsPlugin
 
             VisualizationHandler = new VisualizationHandler();
             VisualizationEvent = ExternalEvent.Create(VisualizationHandler);
+
+            PlanarVisualizationHandler = new PlanarVisualizationHandler();
+            PlanarVisualizationEvent = ExternalEvent.Create(PlanarVisualizationHandler);
 
             view.Show();
             return Result.Succeeded;
@@ -293,6 +300,12 @@ namespace CalcFittingsPlugin
                     }
                 }
 
+                View3D view3D = new FilteredElementCollector(doc)
+                    .OfClass(typeof(View3D))
+                    .Cast<View3D>()
+                    .FirstOrDefault(v => !v.IsTemplate);
+
+                UiDoc.ActiveView = view3D;
                 UiDoc.Selection.SetElementIds(Floors.Select(f => f.Id).ToList());
                 UiDoc.ShowElements(Floors.Select(f => f.Id).ToList());
             }
@@ -1698,6 +1711,460 @@ namespace CalcFittingsPlugin
                 (maxY - minY) + 0.1
             );
         }
+    }
+
+    /*[Transaction(TransactionMode.Manual)]
+    public class PlanarVisualizationHandler : IExternalEventHandler
+    {
+        public ReinforcementSolution Solution { get; set; }
+        public List<Floor> Floors { get; set; }
+        public static UIDocument UiDoc { get; set; }
+
+        public void Execute(UIApplication app)
+        {
+            UiDoc = app.ActiveUIDocument;
+            var doc = UiDoc.Document;
+
+            try
+            {
+                if (Solution == null || Floors == null || Floors.Count == 0)
+                    return;
+
+                // Получаем уровень из первой плиты
+                var level = doc.GetElement(Floors[0].LevelId) as Level;
+                if (level == null) return;
+
+                // Получаем или создаем план
+                ViewPlan viewPlan = GetOrCreatePlanView(doc, level);
+                if (viewPlan == null) return;
+
+                // Переключаемся на план
+                UiDoc.ActiveView = viewPlan;
+
+                using (Transaction t = new Transaction(doc, "2D Reinforcement Visualization"))
+                {
+                    t.Start();
+
+                    // Очищаем только элементы на этом плане
+                    CleanPreviousVisualization(doc, viewPlan, Floors);
+
+                    // Визуализируем зоны
+                    foreach (var zone in Solution.Zones.Where(z => z?.Nodes?.Count > 0))
+                    {
+                        VisualizeZone(doc, viewPlan, zone, Floors[zone.Nodes[0].SlabId]);
+                    }
+
+                    t.Commit();
+                }
+
+                UiDoc.RefreshActiveView();
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка 2D визуализации", ex.ToString());
+            }
+        }
+
+        private ViewPlan GetOrCreatePlanView(Document doc, Level level)
+        {
+            // Ищем существующий план
+            ViewPlan viewPlan = new FilteredElementCollector(doc)
+                .OfClass(typeof(ViewPlan))
+                .Cast<ViewPlan>()
+                .FirstOrDefault(v => !v.IsTemplate && v.GenLevel?.Id == level.Id);
+
+            if (viewPlan != null) return viewPlan;
+
+            // Создаем новый план если не найден
+
+            using (Transaction t = new Transaction(doc, "Создание плана"))
+            {
+                try
+                {
+                    t.Start();
+
+                    ViewFamilyType viewType = new FilteredElementCollector(doc)
+                        .OfClass(typeof(ViewFamilyType))
+                        .Cast<ViewFamilyType>()
+                        .FirstOrDefault(v => v.ViewFamily == ViewFamily.FloorPlan);
+
+                    if (viewType != null)
+                    {
+                        viewPlan = ViewPlan.Create(doc, viewType.Id, level.Id);
+                        viewPlan.Name = $"План армирования {level.Name}";
+                    }
+
+                    t.Commit();
+                }
+                catch
+                {
+                    t.RollBack();
+                    throw;
+                }
+            }
+
+            return viewPlan;
+        }
+
+        private void CleanPreviousVisualization(Document doc, View view, List<Floor> floors)
+        {
+            try
+            {
+                var targetFloorIds = floors.Select(f => f.Id.IntegerValue).ToList();
+
+                // Получаем только наши кривые на этом виде
+                var ourCurves = new FilteredElementCollector(doc, view.Id)
+                    .OfClass(typeof(CurveElement))
+                    .Where(e => IsOurReinforcementElement(e, targetFloorIds))
+                    .Select(e => e.Id)
+                    .ToList();
+
+                if (ourCurves.Count > 0)
+                {
+                    doc.Delete(ourCurves);
+                    Debug.WriteLine($"Удалено {ourCurves.Count} кривых с вида {view.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка при удалении кривых: {ex.Message}");
+            }
+        }
+
+        private bool IsOurReinforcementElement(Element e, List<int> targetFloorIds)
+        {
+            try
+            {
+                // 1. Проверка по параметру комментария
+                Parameter param = e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                if (param != null && param.StorageType == StorageType.String)
+                {
+                    string value = param.AsString() ?? "";
+                    if (value.StartsWith("Reinforcement_"))
+                    {
+                        string[] parts = value.Split('_');
+                        if (parts.Length >= 3 && int.TryParse(parts[2], out int floorId))
+                        {
+                            return targetFloorIds.Contains(floorId);
+                        }
+                    }
+                }
+
+                // 2. Дополнительная проверка по имени (для совместимости)
+                if (!string.IsNullOrEmpty(e.Name))
+                {
+                    if (e.Name.StartsWith("Zone Boundary_") || e.Name.StartsWith("Rebar Visualization_"))
+                    {
+                        string[] parts = e.Name.Split('_');
+                        if (parts.Length >= 2 && int.TryParse(parts.Last(), out int floorId))
+                        {
+                            return targetFloorIds.Contains(floorId);
+                        }
+                    }
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void VisualizeZone(Document doc, ViewPlan view, ZoneSolution zone, Floor floor)
+        {
+            double elevation = (doc.GetElement(floor.LevelId) as Level)?.Elevation ?? 0;
+            ElementId floorId = floor.Id;
+
+            CreateZoneBoundary(doc, view, zone, elevation, floorId);
+            CreateRebarVisualization(doc, view, zone, elevation, floorId);
+        }
+
+        private void CreateZoneBoundary(Document doc, ViewPlan view, ZoneSolution zone, double elevation, ElementId floorId)
+        {
+            try
+            {
+                List<Curve> curves = new List<Curve>();
+                double xMin = zone.Boundary?.X ?? 0;
+                double yMin = zone.Boundary?.Y ?? 0;
+                double xMax = xMin + (zone.Boundary?.Width ?? 0);
+                double yMax = yMin + (zone.Boundary?.Height ?? 0);
+
+                curves.Add(Line.CreateBound(new XYZ(xMin, yMin, elevation), new XYZ(xMax, yMin, elevation)));
+                curves.Add(Line.CreateBound(new XYZ(xMax, yMin, elevation), new XYZ(xMax, yMax, elevation)));
+                curves.Add(Line.CreateBound(new XYZ(xMax, yMax, elevation), new XYZ(xMin, yMax, elevation)));
+                curves.Add(Line.CreateBound(new XYZ(xMin, yMax, elevation), new XYZ(xMin, yMin, elevation)));
+
+                foreach (Curve curve in curves)
+                {
+                    CurveElement curveElement = doc.Create.NewDetailCurve(view, curve);
+                    SetElementMarker(curveElement, "ZoneBoundary", floorId);
+
+                    view.SetElementOverrides(curveElement.Id, new OverrideGraphicSettings()
+                        .SetProjectionLineColor(new Color(0, 255, 0))
+                        .SetProjectionLineWeight(3));
+                }
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка создания границы", ex.Message);
+            }
+        }
+
+        private void CreateRebarVisualization(Document doc, ViewPlan view, ZoneSolution zone, double elevation, ElementId floorId)
+        {
+            try
+            {
+                if (zone.Boundary == null || zone.Rebar == null) return;
+
+                double spacing = zone.Spacing / 1000.0;
+                List<Curve> curves = new List<Curve>();
+
+                double offset = ((zone.Boundary.Height / spacing) - Math.Truncate(zone.Boundary.Height / spacing)) * spacing / 2;
+
+                // Вертикальные стержни
+                for (double y = zone.Boundary.Y; y <= zone.Boundary.Y + zone.Boundary.Height; y += spacing)
+                {
+                    curves.Add(Line.CreateBound(
+                        new XYZ(zone.Boundary.X, y + offset, elevation),
+                        new XYZ(zone.Boundary.X + zone.Boundary.Width, y + offset, elevation)));
+                }
+
+                offset = ((zone.Boundary.Width / spacing) - Math.Truncate(zone.Boundary.Width / spacing)) * spacing / 2;
+
+                // Горизонтальные стержни
+                for (double x = zone.Boundary.X; x <= zone.Boundary.X + zone.Boundary.Width; x += spacing)
+                {
+                    curves.Add(Line.CreateBound(
+                        new XYZ(x + offset, zone.Boundary.Y, elevation),
+                        new XYZ(x + offset, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+                }
+
+                foreach (Curve curve in curves)
+                {
+                    CurveElement curveElement = doc.Create.NewDetailCurve(view, curve);
+                    SetElementMarker(curveElement, "Rebar", floorId);
+
+                    view.SetElementOverrides(curveElement.Id, new OverrideGraphicSettings()
+                        .SetProjectionLineColor(new Color(255, 0, 0))
+                        .SetProjectionLineWeight(1));
+                }
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка создания арматуры", ex.Message);
+            }
+        }
+
+        private void SetElementMarker(Element element, string type, ElementId floorId)
+        {
+            try
+            {
+                Parameter param = element.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS);
+                param?.Set($"Reinforcement_{type}_{floorId.IntegerValue}");
+            }
+            catch { }
+        }
+
+        public string GetName() => "Planar Reinforcement Visualization";
+    }*/
+
+    [Transaction(TransactionMode.Manual)]
+    public class PlanarVisualizationHandler : IExternalEventHandler
+    {
+        public ReinforcementSolution Solution { get; set; }
+        public List<Floor> Floors { get; set; }
+        public static UIDocument UiDoc { get; set; }
+
+        public void Execute(UIApplication app)
+        {
+            UiDoc = app.ActiveUIDocument;
+            var doc = UiDoc.Document;
+
+            try
+            {
+                if (Floors == null || Floors.Count == 0)
+                    return;
+
+                // Получаем уровень из первой плиты
+                var level = doc.GetElement(Floors[0].LevelId) as Level;
+                if (level == null) return;
+
+                // Получаем или создаем план
+                ViewPlan viewPlan = GetOrCreatePlanView(doc, level);
+                if (viewPlan == null) return;
+
+                // Переключаемся на план
+                UiDoc.ActiveView = viewPlan;
+
+                using (Transaction t = new Transaction(doc, "2D Визуализация армирования"))
+                {
+                    t.Start();
+
+                    // Удаляем ВСЕ кривые на этом виде (используем CurveElement вместо DetailCurve)
+                    var allCurves = new FilteredElementCollector(doc, viewPlan.Id)
+                        .OfClass(typeof(CurveElement))
+                        .Where(e => e is DetailCurve) // Фильтруем только DetailCurve
+                        .Select(e => e.Id)
+                        .ToList();
+
+                    if (allCurves.Count > 0)
+                    {
+                        doc.Delete(allCurves);
+                    }
+
+                    // Если нужно создать новые элементы
+                    if (Solution != null && Solution.Zones != null)
+                    {
+                        foreach (var zone in Solution.Zones.Where(z => z?.Nodes?.Count > 0))
+                        {
+                            VisualizeZone(doc, viewPlan, zone, Floors[zone.Nodes[0].SlabId]);
+                        }
+                    }
+
+                    t.Commit();
+                }
+
+                UiDoc.RefreshActiveView();
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка", ex.ToString());
+            }
+        }
+
+        private ViewPlan GetOrCreatePlanView(Document doc, Level level)
+        {
+            // Поиск существующего плана
+            ViewPlan viewPlan = new FilteredElementCollector(doc)
+                .OfClass(typeof(ViewPlan))
+                .Cast<ViewPlan>()
+                .FirstOrDefault(v => !v.IsTemplate && v.GenLevel?.Id == level.Id);
+
+            if (viewPlan != null) return viewPlan;
+
+            // Создание нового плана
+            using (Transaction t = new Transaction(doc, "Создание плана"))
+            {
+                t.Start();
+
+                ViewFamilyType viewType = new FilteredElementCollector(doc)
+                    .OfClass(typeof(ViewFamilyType))
+                    .Cast<ViewFamilyType>()
+                    .FirstOrDefault(v => v.ViewFamily == ViewFamily.FloorPlan);
+
+                if (viewType != null)
+                {
+                    viewPlan = ViewPlan.Create(doc, viewType.Id, level.Id);
+                    viewPlan.Name = $"План армирования {level.Name}";
+                }
+
+                t.Commit();
+            }
+
+            return viewPlan;
+        }
+
+        private void VisualizeZone(Document doc, ViewPlan view, ZoneSolution zone, Floor floor)
+        {
+            double elevation = (doc.GetElement(floor.LevelId) as Level)?.Elevation ?? 0;
+            ElementId floorId = floor.Id;
+
+            CreateZoneBoundary(doc, view, zone, elevation, floorId);
+            CreateRebarVisualization(doc, view, zone, elevation, floorId);
+        }
+
+        private void CreateZoneBoundary(Document doc, ViewPlan view, ZoneSolution zone, double elevation, ElementId floorId)
+        {
+            try
+            {
+                List<Curve> curves = new List<Curve>();
+                double xMin = zone.Boundary?.X ?? 0;
+                double yMin = zone.Boundary?.Y ?? 0;
+                double xMax = xMin + (zone.Boundary?.Width ?? 0);
+                double yMax = yMin + (zone.Boundary?.Height ?? 0);
+
+                // Границы зоны с небольшим отступом
+                double offset = 0.05;
+                curves.Add(Line.CreateBound(new XYZ(xMin - offset, yMin - offset, elevation), new XYZ(xMax + offset, yMin - offset, elevation)));
+                curves.Add(Line.CreateBound(new XYZ(xMax + offset, yMin - offset, elevation), new XYZ(xMax + offset, yMax + offset, elevation)));
+                curves.Add(Line.CreateBound(new XYZ(xMax + offset, yMax + offset, elevation), new XYZ(xMin - offset, yMax + offset, elevation)));
+                curves.Add(Line.CreateBound(new XYZ(xMin - offset, yMax + offset, elevation), new XYZ(xMin - offset, yMin - offset, elevation)));
+
+                foreach (Curve curve in curves)
+                {
+                    // Создаем кривую с использованием CurveElement
+                    CurveElement curveElement = doc.Create.NewDetailCurve(view, curve);
+
+                    // Маркируем элемент
+                   // curveElement.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+                   //     .Set($"Reinforcement_Zone_{floorId.IntegerValue}");
+
+                    // Настройка отображения
+                    OverrideGraphicSettings ogs = new OverrideGraphicSettings()
+                        .SetProjectionLineColor(new Color(0, 255, 0))
+                        .SetProjectionLineWeight(1);
+
+                    view.SetElementOverrides(curveElement.Id, ogs);
+                }
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка создания границы", ex.Message);
+            }
+        }
+
+        private void CreateRebarVisualization(Document doc, ViewPlan view, ZoneSolution zone, double elevation, ElementId floorId)
+        {
+            try
+            {
+                if (zone.Boundary == null || zone.Rebar == null) return;
+
+                double spacing = zone.Spacing / 1000.0; // Переводим в метры
+                List<Curve> curves = new List<Curve>();
+
+                // Вертикальные стержни
+                double offset = ((zone.Boundary.Height / spacing) - Math.Truncate(zone.Boundary.Height / spacing)) * spacing / 2;
+                for (double y = zone.Boundary.Y; y <= zone.Boundary.Y + zone.Boundary.Height; y += spacing)
+                {
+                    curves.Add(Line.CreateBound(
+                        new XYZ(zone.Boundary.X, y + offset, elevation),
+                        new XYZ(zone.Boundary.X + zone.Boundary.Width, y + offset, elevation)));
+                }
+
+                // Горизонтальные стержни
+                offset = ((zone.Boundary.Width / spacing) - Math.Truncate(zone.Boundary.Width / spacing)) * spacing / 2;
+                for (double x = zone.Boundary.X; x <= zone.Boundary.X + zone.Boundary.Width; x += spacing)
+                {
+                    curves.Add(Line.CreateBound(
+                        new XYZ(x + offset, zone.Boundary.Y, elevation),
+                        new XYZ(x + offset, zone.Boundary.Y + zone.Boundary.Height, elevation)));
+                }
+
+                foreach (Curve curve in curves)
+                {
+                    // Создаем кривую с использованием CurveElement
+                    CurveElement curveElement = doc.Create.NewDetailCurve(view, curve);
+
+                    // Маркируем элемент
+                   // curveElement.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+                   //     .Set($"Reinforcement_Rebar_{floorId.IntegerValue}");
+
+                    // Настройка отображения
+                    OverrideGraphicSettings ogs = new OverrideGraphicSettings()
+                        .SetProjectionLineColor(new Color(255, 0, 0))
+                        .SetProjectionLineWeight(1);
+
+                    view.SetElementOverrides(curveElement.Id, ogs);
+                }
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("Ошибка создания арматуры", ex.Message);
+            }
+        }
+
+        public string GetName() => "2D Визуализация армирования";
     }
 
 }
