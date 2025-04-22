@@ -130,10 +130,10 @@
                     <ColumnDefinition Width="130"/>
                     <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="130"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="130"/>
-                    
                     <ColumnDefinition Width="172"/>
+                    
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="130"/>
                 </Grid.ColumnDefinitions>
 
@@ -153,16 +153,16 @@
                 <Button Grid.Column="4" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False" Name="ApplyBtn" Click="ApplyBtn_Click">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource SuccessIcon}" Width="28" Height="28" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
-                        <TextBlock Text="Применить к модели" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
+                        <TextBlock Text="Применить       к 3D модели" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="6" Height="40" Style="{StaticResource {x:Type Button}}" IsEnabled="False" Name="CancelBtn" Click="CancelBtn_Click">
+                <Button Grid.Column="8" Height="40" Style="{StaticResource {x:Type Button}}" Name="CancelBtn" Click="CancelBtn_Click">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource CancelIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="5,0,0,0"/>
-                        <TextBlock Text="Отменить применение" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
+                        <TextBlock Text="Удалить зоны армирования" TextWrapping="Wrap" Margin="8,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="8" Height="40" Style="{StaticResource {x:Type Button}}" Click="OpenFitDataEditor">
+                <Button Grid.Column="6" Height="40" Style="{StaticResource {x:Type Button}}" Click="OpenFitDataEditor">
                     <StackPanel Orientation="Horizontal">
                         <Image Source="{StaticResource EditIcon}" Width="26" Height="26" RenderTransformOrigin="-1.976,0.767"  Margin="3,0,0,0"/>
                         <TextBlock Text="Данные по арматуре" TextWrapping="Wrap" Margin="5,0,0,0" VerticalAlignment="Center" Height="36" Width="91"/>

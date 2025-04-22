@@ -184,7 +184,7 @@ namespace CalcFittingsPlugin
                 try
                 {
                     ApplyBtn.IsEnabled = false;
-                    CancelBtn.IsEnabled = false;
+                    //CancelBtn.IsEnabled = false;
                     ZonesTable.Clear();
 
                     //Сбрасываем модель к исходной, удаляем все текущие решения
@@ -380,7 +380,7 @@ namespace CalcFittingsPlugin
 
             ZonesTable.Clear();
             ApplyBtn.IsEnabled = false;
-            CancelBtn.IsEnabled = false;
+            //CancelBtn.IsEnabled = false;
 
             //ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcStart));
 
@@ -569,6 +569,7 @@ namespace CalcFittingsPlugin
                  } */
 
                 ApplyBtn.IsEnabled = true;
+                //CancelBtn.IsEnabled = true;
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc));
 
             }
@@ -577,7 +578,8 @@ namespace CalcFittingsPlugin
                 //MessageBox.Show(ex.Message);
                 ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcErr));
                 ApplyBtn.IsEnabled = false;
-                CancelBtn.IsEnabled = false;
+                //CancelBtn.IsEnabled = false;
+                ZonesTable.Clear();
             }
             finally
             {
@@ -699,7 +701,7 @@ namespace CalcFittingsPlugin
                 // Запускаем визуализацию
                 Command.VisualizationEvent.Raise();
 
-                CancelBtn.IsEnabled = true;
+                //CancelBtn.IsEnabled = true;
 
                 await Task.Delay(500);
 
@@ -744,7 +746,7 @@ namespace CalcFittingsPlugin
                 progressWindow.UpdateProgress(0, "Удаление зон");
 
                 this.IsEnabled = false;
-                CancelBtn.IsEnabled = false;
+                //CancelBtn.IsEnabled = false;
 
                 Command.CleanHandler.Floors = floors;
                 Command.CleanEvent.Raise();
@@ -755,13 +757,13 @@ namespace CalcFittingsPlugin
 
                 await Task.Delay(500);
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Предыдущая визуализация отменена"));
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализированные зоны удалены"));
             }
             catch
             {
-                MessageBox.Show("Не удалось отменить визуализацию зон, удалите зоны вручную.",
+                MessageBox.Show("Не удалось удалить визуализацию зон, удалите зоны вручную.",
                    "Отмена визуализации", MessageBoxButton.OK, MessageBoxImage.Warning);
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось отменить визуализацию зон"));
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось удалить визуализацию зон"));
             }
             finally
             {
