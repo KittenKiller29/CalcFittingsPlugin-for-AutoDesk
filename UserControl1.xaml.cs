@@ -639,10 +639,11 @@ namespace CalcFittingsPlugin
                 // Запускаем визуализацию
                 Command.PlanarVisualizationEvent.Raise();
 
-                progressWindow.UpdateProgress(100, "Визуализация зон завершена");
-                await Task.Delay(100);
-
                 ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения на 2D плане завершена"));
+
+                await Task.Delay(500);
+
+                progressWindow.UpdateProgress(100, "Визуализация зон завершена");
             }
             catch
             {
@@ -652,6 +653,9 @@ namespace CalcFittingsPlugin
             }
             finally
             {
+                
+                await Task.Delay(500);
+
                 progressWindow.SafeClose();
                 this.Focus();
                 this.Activate();
@@ -695,13 +699,13 @@ namespace CalcFittingsPlugin
                 // Запускаем визуализацию
                 Command.VisualizationEvent.Raise();
 
-                progressWindow.UpdateProgress(100, "Визуализация завершена");
-
-                await Task.Delay(500);
-
                 ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения для 3D завершена"));
 
                 CancelBtn.IsEnabled = true;
+
+                await Task.Delay(500);
+
+                progressWindow.UpdateProgress(100, "Визуализация завершена");
             }
             catch
             {
@@ -711,6 +715,9 @@ namespace CalcFittingsPlugin
             }
             finally
             {
+              
+                await Task.Delay(500);
+
                 progressWindow.SafeClose();
                 this.Focus();
                 this.Activate();
@@ -718,23 +725,49 @@ namespace CalcFittingsPlugin
             }
         }
 
-        private void CancelBtn_Click(object sender, RoutedEventArgs e)
+        private async void CancelBtn_Click(object sender, RoutedEventArgs e)
         {
             //Отменяем принятое решение
+            ProgressWindow progressWindow = new ProgressWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Topmost = true,
+                Title = "Отмена визуализации"
+            };
+
             try
             {
+                progressWindow.Show();
+
+                progressWindow.UpdateProgress(0, "Удаление зон");
+
+                this.IsEnabled = false;
                 CancelBtn.IsEnabled = false;
 
                 Command.CleanHandler.Floors = floors;
                 Command.CleanEvent.Raise();
 
                 ConsoleLog.AppendText(Tools.CreateLogMessage("Предыдущая визуализация отменена"));
+
+                await Task.Delay(500);
+
+                progressWindow.UpdateProgress(100, "Удаление завершено");
             }
             catch
             {
                 MessageBox.Show("Не удалось отменить визуализацию зон, удалите зоны вручную.",
                    "Отмена визуализации", MessageBoxButton.OK, MessageBoxImage.Warning);
                 ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось отменить визуализацию зон"));
+            }
+            finally
+            {
+                await Task.Delay(500);
+
+                progressWindow.SafeClose();
+                this.Focus();
+                this.Activate();
+                this.IsEnabled = true;
             }
             
         }
