@@ -203,11 +203,11 @@ namespace CalcFittingsPlugin
                     progressWindow.Show();
 
                     // Добавляем сообщение в лог
-                    ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParseStart));
+                    //ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParseStart));
 
                     await ParseCsvWithProgress(openFileDialog.FileName, progressWindow);
                     progressWindow.UpdateProgress(100, "Завершено");
-                    await Task.Delay(1000); // Даем время увидеть 100%
+                    await Task.Delay(500); // Даем время увидеть 100%
 
                     ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.ParceEnd));
                     CalcFittingBtn.IsEnabled = true;
@@ -382,7 +382,7 @@ namespace CalcFittingsPlugin
             ApplyBtn.IsEnabled = false;
             CancelBtn.IsEnabled = false;
 
-            ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcStart));
+            //ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcStart));
 
             try
             {
@@ -628,7 +628,7 @@ namespace CalcFittingsPlugin
                 this.IsEnabled = false;
             try
             {
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения на 2D плане"));
+                //ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения на 2D плане"));
                 progressWindow.Show();
                 progressWindow.UpdateProgress(0, "Визуализация зон");
                 await Task.Delay(100);
@@ -639,11 +639,13 @@ namespace CalcFittingsPlugin
                 // Запускаем визуализацию
                 Command.PlanarVisualizationEvent.Raise();
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения на 2D плане завершена"));
-
                 await Task.Delay(500);
 
                 progressWindow.UpdateProgress(100, "Визуализация зон завершена");
+
+                await Task.Delay(500);
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Решение визуализировано на 2D плане"));
             }
             catch
             {
@@ -653,8 +655,6 @@ namespace CalcFittingsPlugin
             }
             finally
             {
-                
-                await Task.Delay(500);
 
                 progressWindow.SafeClose();
                 this.Focus();
@@ -691,7 +691,7 @@ namespace CalcFittingsPlugin
 
                 progressWindow.UpdateProgress(0, "Визуализация зон");
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения для 3D"));
+                //ConsoleLog.AppendText(Tools.CreateLogMessage("Запущена визуализация решения для 3D"));
 
                 Command.VisualizationHandler.Solution = bestSolutions[SolutionsView.SelectedIndex]; 
                 Command.VisualizationHandler.Floors = floors;
@@ -699,13 +699,15 @@ namespace CalcFittingsPlugin
                 // Запускаем визуализацию
                 Command.VisualizationEvent.Raise();
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Визуализация решения для 3D завершена"));
-
                 CancelBtn.IsEnabled = true;
 
                 await Task.Delay(500);
 
                 progressWindow.UpdateProgress(100, "Визуализация завершена");
+
+                await Task.Delay(500);
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Решение визуализировано в 3D модели"));
             }
             catch
             {
@@ -715,8 +717,7 @@ namespace CalcFittingsPlugin
             }
             finally
             {
-              
-                await Task.Delay(500);
+             
 
                 progressWindow.SafeClose();
                 this.Focus();
@@ -748,11 +749,13 @@ namespace CalcFittingsPlugin
                 Command.CleanHandler.Floors = floors;
                 Command.CleanEvent.Raise();
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Предыдущая визуализация отменена"));
-
                 await Task.Delay(500);
 
                 progressWindow.UpdateProgress(100, "Удаление завершено");
+
+                await Task.Delay(500);
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Предыдущая визуализация отменена"));
             }
             catch
             {
@@ -762,7 +765,6 @@ namespace CalcFittingsPlugin
             }
             finally
             {
-                await Task.Delay(500);
 
                 progressWindow.SafeClose();
                 this.Focus();

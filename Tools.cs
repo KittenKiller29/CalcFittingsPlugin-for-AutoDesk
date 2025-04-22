@@ -24,12 +24,12 @@ namespace CalcFittingsPlugin
         public const string InvalideData = "Невалидные данные:\n";
         public const string SucLoadFit = "Загрузка армирования: Успешно.";
         public const string ErrLoadFit = "Загрузка армирования: Ошибка.";
-        public const string ParseStart = "Начата загрузка армирования из .csv файла.";
-        public const string ParceEnd = "Загрузка армирования из .csv файла завершена.";
-        public const string ParceErr = "Не удалось прочитать данные об армировании из .csv файла.";
-        public const string CalcStart = "Расчет запущен.";
-        public const string CalcErr = "Не удалось выполнить расчет.";
-        public const string CalcSuc = "Расчет выполнен успешно.";
+        public const string ParseStart = "Начата загрузка армирования из .csv файла";
+        public const string ParceEnd = "Армирование из .csv файла загружено успешно";
+        public const string ParceErr = "Не удалось прочитать данные об армировании из .csv файла";
+        public const string CalcStart = "Расчет запущен";
+        public const string CalcErr = "Не удалось выполнить расчет зон дополнительного армирования";
+        public const string CalcSuc = "Выполнен расчет зон дополнительного армирования";
         public const int HeadersCount = 10;
         public static readonly string[] HeadersTemplate = { "Тип", "Номер", "Координата X узлов", "Координата Y узлов", "Координата Z центр", "Координата Z минимум", "As1X", "As2X", "As3Y", "As4Y" };
 
