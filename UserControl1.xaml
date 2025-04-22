@@ -232,7 +232,7 @@
                     <!-- TextBox для логов -->
                     <Border BorderThickness="0" CornerRadius="1">
                         <TextBox Name="ConsoleLog" Margin="-6,0,10,0" TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" BorderThickness="1" BorderBrush="Gray"
-                     VerticalScrollBarVisibility="Visible" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Height="324" Width="310"/>
+                     VerticalScrollBarVisibility="Visible" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Height="324" Width="310" TextChanged="ConsoleLog_TextChanged"/>
                     </Border>
                 </StackPanel>
             </Border>

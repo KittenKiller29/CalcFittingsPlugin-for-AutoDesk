@@ -771,5 +771,11 @@ namespace CalcFittingsPlugin
             }
             
         }
+
+        private void ConsoleLog_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            textBox?.ScrollToEnd();
+        }
     }
 }
