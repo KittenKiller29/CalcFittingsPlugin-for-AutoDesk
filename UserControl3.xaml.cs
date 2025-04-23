@@ -27,6 +27,7 @@ namespace CalcFittingsPlugin
         {
             InitializeComponent();
             LvlTextBox.Text = lvlName;
+            lastMessage = "";
         }
 
         private void Delete3DButton_Click(object sender, RoutedEventArgs e)

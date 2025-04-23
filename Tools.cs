@@ -37,7 +37,7 @@ namespace CalcFittingsPlugin
         public static string CreateLogMessage(string text)
         {
             DateTime now = DateTime.Now;
-            return "[" + now.ToString("HH:mm:ss") + "]: " + text + "\n";
+            return "[" + now.ToString("HH:mm:ss") + "]: " + text + "\n-----------------------------------------------------------\n";
         }
         //Функция для проверки регуляркой, является ли введенный символ числом
         public static bool IsInt(string text)
