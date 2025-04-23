@@ -779,7 +779,10 @@ namespace CalcFittingsPlugin
             deleteWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
             deleteWindow.ShowDialog();
 
-
+            if(deleteWindow.GetLastMessage() != "")
+            {
+                ConsoleLog.AppendText(Tools.CreateLogMessage(deleteWindow.GetLastMessage()));
+            }
 
         }
 
