@@ -728,10 +728,10 @@ namespace CalcFittingsPlugin
             }
         }
 
-        private async void CancelBtn_Click(object sender, RoutedEventArgs e)
+        private void CancelBtn_Click(object sender, RoutedEventArgs e)
         {
             //Отменяем принятое решение
-            ProgressWindow progressWindow = new ProgressWindow
+            /*ProgressWindow progressWindow = new ProgressWindow
             {
                 Owner = this,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -772,8 +772,15 @@ namespace CalcFittingsPlugin
                 this.Focus();
                 this.Activate();
                 this.IsEnabled = true;
-            }
-            
+            }*/
+
+            UserControl3 deleteWindow = new UserControl3(FlrTextBox.Text);
+            deleteWindow.Owner = this;
+            deleteWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            deleteWindow.ShowDialog();
+
+
+
         }
 
         private void ConsoleLog_TextChanged(object sender, TextChangedEventArgs e)
