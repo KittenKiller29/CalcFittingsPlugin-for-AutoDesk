@@ -30,11 +30,25 @@ namespace CalcFittingsPlugin
             lastMessage = "";
         }
 
-        private void Delete3DButton_Click(object sender, RoutedEventArgs e)
+        private async void Delete3DButton_Click(object sender, RoutedEventArgs e)
         {
             string msg = "";
+
+            ProgressWindow progressWindow = new ProgressWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Topmost = true,
+                Title = "Удаление армирования"
+            };
+
             try
             {
+                this.IsEnabled = false;
+
+                progressWindow.Show();
+
+                progressWindow.UpdateProgress(0, "Удаление зон");
 
                 msg = ValidateLVL(false);
 
@@ -42,6 +56,27 @@ namespace CalcFittingsPlugin
 
                 //Прошли валидацию, удаляем армирование
 
+                Level targetLevel = new FilteredElementCollector(Command.uiDoc.Document)
+                   .OfClass(typeof(Level))
+                   .Cast<Level>()
+                   .FirstOrDefault(l => l.Name.Equals(LvlTextBox.Text));
+
+                List<Floor> floors = new FilteredElementCollector(Command.uiDoc.Document)
+                    .OfClass(typeof(Floor))
+                    .WhereElementIsNotElementType()
+                    .Cast<Floor>()
+                    .Where(f => f.LevelId == targetLevel.Id)
+                    .Where(f => f.GetTypeId() != ElementId.InvalidElementId)
+                    .ToList();
+
+                Command.CleanHandler.Floors = floors;
+                Command.CleanEvent.Raise();
+
+                await Task.Delay(500);
+
+                progressWindow.UpdateProgress(100, "Удаление завершено");
+
+                await Task.Delay(500);
 
                 lastMessage = "На уровне '" + LvlTextBox.Text + "' удалено дополнительное армирование (3D модель)";
             }
@@ -60,16 +95,37 @@ namespace CalcFittingsPlugin
                 {
                     MessageBox.Show(msg, "Ошибка удаления армирования", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
+
+                progressWindow.SafeClose();
+                this.Focus();
+                this.Activate();
+                this.IsEnabled = true;
+
                 this.Tag = true;
                 this.Close();
             }
         }
 
-        private void Delete2DButton_Click(object sender, RoutedEventArgs e)
+        private async void Delete2DButton_Click(object sender, RoutedEventArgs e)
         {
             string msg = "";
+
+            ProgressWindow progressWindow = new ProgressWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Topmost = true,
+                Title = "Удаление армирования"
+            };
+
             try
             {
+
+                this.IsEnabled = false;
+
+                progressWindow.Show();
+
+                progressWindow.UpdateProgress(0, "Удаление зон");
 
                 msg = ValidateLVL(true);
 
@@ -78,6 +134,12 @@ namespace CalcFittingsPlugin
                 //Прошли валидацию, запускаем удаление
 
 
+
+                await Task.Delay(500);
+
+                progressWindow.UpdateProgress(100, "Удаление завершено");
+
+                await Task.Delay(500);
 
 
                 lastMessage = "На уровне '" + LvlTextBox.Text + "' удалено дополнительное армирование (2D план)";
@@ -97,6 +159,12 @@ namespace CalcFittingsPlugin
                 {
                     MessageBox.Show(msg, "Ошибка удаления армирования", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
+
+                progressWindow.SafeClose();
+                this.Focus();
+                this.Activate();
+                this.IsEnabled = true;
+
                 this.Tag = true;
                 this.Close();
             }

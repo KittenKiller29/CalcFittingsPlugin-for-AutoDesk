@@ -100,6 +100,7 @@ namespace CalcFittingsPlugin
             ZonesTable.Columns.Add("RebLength", typeof(double));
             ZonesTable.Columns.Add("RebCost", typeof(int));
             ZonesTable.Columns.Add("Num", typeof(int));
+            ZonesTable.Columns.Add("RebLvl", typeof(string));
             SolutionsView.ItemsSource = ZonesTable.DefaultView;
 
         }
@@ -543,6 +544,7 @@ namespace CalcFittingsPlugin
                     newRow["RebLength"] = length;
                     newRow["RebCost"] = solution.TotalCost;
                     newRow["Num"] = num;
+                    newRow["RebLvl"] = FlrTextBox.Text;
 
                     num++;
 
@@ -570,13 +572,13 @@ namespace CalcFittingsPlugin
 
                 ApplyBtn.IsEnabled = true;
                 //CancelBtn.IsEnabled = true;
-                ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc));
+                ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcSuc + " '" + FlrTextBox.Text + "'"));
 
             }
             catch(Exception ex)
             {
                 //MessageBox.Show(ex.Message);
-                ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcErr));
+                ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcErr + " '" + FlrTextBox.Text + "'"));
                 ApplyBtn.IsEnabled = false;
                 //CancelBtn.IsEnabled = false;
                 ZonesTable.Clear();
@@ -647,7 +649,7 @@ namespace CalcFittingsPlugin
 
                 await Task.Delay(500);
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Решение визуализировано на 2D плане"));
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Решение визуализировано на 2D плане для уровня '" + ZonesTable.Rows[SolutionsView.SelectedIndex]["RebLvl"] + "'"));
             }
             catch
             {
@@ -709,7 +711,7 @@ namespace CalcFittingsPlugin
 
                 await Task.Delay(500);
 
-                ConsoleLog.AppendText(Tools.CreateLogMessage("Решение визуализировано в 3D модели"));
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Решение визуализировано в 3D модели для уровня '" + ZonesTable.Rows[SolutionsView.SelectedIndex]["RebLvl"] + "'"));
             }
             catch
             {

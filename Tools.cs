@@ -28,8 +28,8 @@ namespace CalcFittingsPlugin
         public const string ParceEnd = "Армирование из .csv файла загружено успешно";
         public const string ParceErr = "Не удалось прочитать данные об армировании из .csv файла";
         public const string CalcStart = "Расчет запущен";
-        public const string CalcErr = "Не удалось выполнить расчет зон дополнительного армирования";
-        public const string CalcSuc = "Выполнен расчет зон дополнительного армирования";
+        public const string CalcErr = "Не удалось выполнить расчет для уровня";
+        public const string CalcSuc = "Выполнен расчет для уровня";
         public const int HeadersCount = 10;
         public static readonly string[] HeadersTemplate = { "Тип", "Номер", "Координата X узлов", "Координата Y узлов", "Координата Z центр", "Координата Z минимум", "As1X", "As2X", "As3Y", "As4Y" };
 
