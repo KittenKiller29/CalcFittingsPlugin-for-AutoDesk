@@ -26,9 +26,8 @@ namespace CalcFittingsPlugin
         public static ExternalEvent CleanEvent { get; set; }
         public static PlanarVisualizationHandler PlanarVisualizationHandler { get; set; }
         public static ExternalEvent PlanarVisualizationEvent { get; set; }
-
-
-
+        public static PlanarCleanHandler PlanarCleanHandler { get; set; }
+        public static ExternalEvent PlanarCleanEvent { get; set; }
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
@@ -42,6 +41,9 @@ namespace CalcFittingsPlugin
 
             PlanarVisualizationHandler = new PlanarVisualizationHandler();
             PlanarVisualizationEvent = ExternalEvent.Create(PlanarVisualizationHandler);
+
+            PlanarCleanHandler = new PlanarCleanHandler();
+            PlanarCleanEvent = ExternalEvent.Create(PlanarCleanHandler);
 
             view.Show();
             return Result.Succeeded;
@@ -445,7 +447,7 @@ namespace CalcFittingsPlugin
                 double yMax = yMin + zone.Boundary.Height;
 
                 // Создаем кривые границы с визуальным смещением наружу
-                double lineOffset = 0.05; 
+                double lineOffset = 0.05;
 
                 // Добавляем кривые границы зоны
                 geometryObjects.Add(Line.CreateBound(
@@ -560,7 +562,7 @@ namespace CalcFittingsPlugin
         {
             try
             {
-             // Получаем ID целевых плит
+                // Получаем ID целевых плит
                 var targetFloorIds = targetFloors.Select(f => f.Id.IntegerValue).ToList();
 
                 // Собираем все элементы визуализации
@@ -604,7 +606,7 @@ namespace CalcFittingsPlugin
             View3D view = new FilteredElementCollector(doc)
                     .OfClass(typeof(View3D))
                     .Cast<View3D>()
-                    .FirstOrDefault(v => !v.IsTemplate); 
+                    .FirstOrDefault(v => !v.IsTemplate);
 
             if (view == null)
             {
@@ -2097,8 +2099,8 @@ namespace CalcFittingsPlugin
                     CurveElement curveElement = doc.Create.NewDetailCurve(view, curve);
 
                     // Маркируем элемент
-                   // curveElement.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
-                   //     .Set($"Reinforcement_Zone_{floorId.IntegerValue}");
+                    // curveElement.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+                    //     .Set($"Reinforcement_Zone_{floorId.IntegerValue}");
 
                     // Настройка отображения
                     OverrideGraphicSettings ogs = new OverrideGraphicSettings()
@@ -2147,8 +2149,8 @@ namespace CalcFittingsPlugin
                     CurveElement curveElement = doc.Create.NewDetailCurve(view, curve);
 
                     // Маркируем элемент
-                   // curveElement.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
-                   //     .Set($"Reinforcement_Rebar_{floorId.IntegerValue}");
+                    // curveElement.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+                    //     .Set($"Reinforcement_Rebar_{floorId.IntegerValue}");
 
                     // Настройка отображения
                     OverrideGraphicSettings ogs = new OverrideGraphicSettings()
@@ -2167,4 +2169,50 @@ namespace CalcFittingsPlugin
         public string GetName() => "2D Визуализация армирования";
     }
 
+    [Transaction(TransactionMode.Manual)]
+    public class PlanarCleanHandler : IExternalEventHandler
+    {
+        public static UIDocument UiDoc { get; set; }
+        public List<Floor> Floors { get; set; }
+
+        public void Execute(UIApplication app)
+        {
+            UiDoc = app.ActiveUIDocument;
+            var doc = UiDoc.Document;
+
+            var level = doc.GetElement(Floors[0].LevelId) as Level;
+            if (level == null) return;
+
+            ViewPlan viewPlan = new FilteredElementCollector(doc)
+               .OfClass(typeof(ViewPlan))
+               .Cast<ViewPlan>()
+               .FirstOrDefault(v => !v.IsTemplate && v.GenLevel?.Id == level.Id);
+
+
+            UiDoc.ActiveView = viewPlan;
+
+            using (Transaction t = new Transaction(doc, "2D Визуализация армирования"))
+            {
+                t.Start();
+
+                // Удаляем ВСЕ кривые на этом виде (используем CurveElement вместо DetailCurve)
+                var allCurves = new FilteredElementCollector(doc, viewPlan.Id)
+                    .OfClass(typeof(CurveElement))
+                    .Where(e => e is DetailCurve) // Фильтруем только DetailCurve
+                    .Select(e => e.Id)
+                    .ToList();
+
+                if (allCurves.Count > 0)
+                {
+                    doc.Delete(allCurves);
+                }
+
+                t.Commit();
+            }
+
+            UiDoc.RefreshActiveView();
+        }
+
+        public string GetName() => "2D Удаление армирования";
+    }
 }

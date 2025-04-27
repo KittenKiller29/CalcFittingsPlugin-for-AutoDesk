@@ -76,7 +76,7 @@ namespace CalcFittingsPlugin
 
                 progressWindow.UpdateProgress(100, "Удаление завершено");
 
-                await Task.Delay(500);
+                await Task.Delay(1000);
 
                 lastMessage = "На уровне '" + LvlTextBox.Text + "' удалено дополнительное армирование (3D модель)";
             }
@@ -133,13 +133,27 @@ namespace CalcFittingsPlugin
 
                 //Прошли валидацию, запускаем удаление
 
+                Level targetLevel = new FilteredElementCollector(Command.uiDoc.Document)
+                   .OfClass(typeof(Level))
+                   .Cast<Level>()
+                   .FirstOrDefault(l => l.Name.Equals(LvlTextBox.Text));
 
+                List<Floor> floors = new FilteredElementCollector(Command.uiDoc.Document)
+                    .OfClass(typeof(Floor))
+                    .WhereElementIsNotElementType()
+                    .Cast<Floor>()
+                    .Where(f => f.LevelId == targetLevel.Id)
+                    .Where(f => f.GetTypeId() != ElementId.InvalidElementId)
+                    .ToList();
+
+                Command.PlanarCleanHandler.Floors = floors;
+                Command.PlanarCleanEvent.Raise();
 
                 await Task.Delay(500);
 
                 progressWindow.UpdateProgress(100, "Удаление завершено");
 
-                await Task.Delay(500);
+                await Task.Delay(1000);
 
 
                 lastMessage = "На уровне '" + LvlTextBox.Text + "' удалено дополнительное армирование (2D план)";
