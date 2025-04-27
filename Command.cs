@@ -793,37 +793,102 @@ namespace CalcFittingsPlugin
             var allNodes = slabsNodes.SelectMany(x => x).ToList();
             var remainingNodes = new List<Node>(allNodes);
 
+            // 1. Сначала объединяем узлы в крупные кластеры
             while (remainingNodes.Count > 0)
             {
                 var startNode = remainingNodes[Random.Next(remainingNodes.Count)];
-                var nearbyNodes = _spatialGrid.GetNearbyItems(startNode, 3.0)
+
+                // Увеличиваем радиус поиска соседей для более крупных зон
+                double searchRadius = 3.0 + Random.NextDouble() * 2.0; // 3-5 метров
+                var nearbyNodes = _spatialGrid.GetNearbyItems(startNode, searchRadius)
                     .Where(n => remainingNodes.Contains(n))
                     .ToList();
 
-                int clusterSize = Math.Min(Random.Next(5, 16), nearbyNodes.Count);
+                // Увеличиваем максимальный размер кластера
+                int maxClusterSize = Random.Next(8, 25); // 8-24 узла
                 var clusterNodes = nearbyNodes
                     .OrderBy(n => Distance(startNode, n))
-                    .Take(clusterSize)
+                    .Take(maxClusterSize)
                     .ToList();
 
-                var zone = CreateZoneWithHoleAvoidance(clusterNodes);
-                if (zone != null)
+                // Создаем зону только если нашли достаточно узлов
+                if (clusterNodes.Count >= 5) // Минимум 5 узлов для объединения
                 {
-                    solution.Zones.Add(zone);
-                    remainingNodes.RemoveAll(n => clusterNodes.Contains(n));
-                }
-                else
-                {
-                    var singleZone = CreateSingleNodeZone(startNode);
-                    if (singleZone != null)
+                    var zone = CreateZoneWithHoleAvoidance(clusterNodes);
+                    if (zone != null)
                     {
-                        solution.Zones.Add(singleZone);
-                        remainingNodes.Remove(startNode);
+                        solution.Zones.Add(zone);
+                        remainingNodes.RemoveAll(n => clusterNodes.Contains(n));
+                        continue;
                     }
+                }
+
+                // Если не удалось создать большую зону, попробуем меньшую
+                if (clusterNodes.Count >= 3)
+                {
+                    var smallerCluster = clusterNodes.Take(3).ToList();
+                    var zone = CreateZoneWithHoleAvoidance(smallerCluster);
+                    if (zone != null)
+                    {
+                        solution.Zones.Add(zone);
+                        remainingNodes.RemoveAll(n => smallerCluster.Contains(n));
+                        continue;
+                    }
+                }
+
+                // В крайнем случае создаем зону для одного узла
+                var singleZone = CreateSingleNodeZone(startNode);
+                if (singleZone != null)
+                {
+                    solution.Zones.Add(singleZone);
+                    remainingNodes.Remove(startNode);
                 }
             }
 
+            // 2. Оптимизируем полученные зоны, объединяя соседние
+            OptimizeSolution(solution);
+
             return solution;
+        }
+
+        private void OptimizeSolution(ReinforcementSolution solution)
+        {
+            bool merged;
+            do
+            {
+                merged = false;
+                var zones = solution.Zones.OrderBy(z => z.Boundary.X).ToList();
+
+                for (int i = 0; i < zones.Count; i++)
+                {
+                    for (int j = i + 1; j < zones.Count; j++)
+                    {
+                        var zone1 = zones[i];
+                        var zone2 = zones[j];
+
+                        // Проверяем расстояние между зонами
+                        double distance = CalculateDistanceBetweenZones(zone1, zone2);
+
+                        // Если зоны близко и не пересекаются с отверстиями
+                        if (distance < 2.0 && ShouldMergeZones(zone1, zone2))
+                        {
+                            var mergedNodes = zone1.Nodes.Concat(zone2.Nodes).ToList();
+                            var mergedBoundary = CalculateMergedBoundary(zone1.Boundary, zone2.Boundary);
+                            var mergedZone = CreateOptimalZone(mergedNodes, mergedBoundary);
+
+                            if (mergedZone != null && mergedZone.TotalCost < (zone1.TotalCost + zone2.TotalCost))
+                            {
+                                solution.Zones.Remove(zone1);
+                                solution.Zones.Remove(zone2);
+                                solution.Zones.Add(mergedZone);
+                                merged = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (merged) break;
+                }
+            } while (merged);
         }
 
         private ZoneSolution CreateZoneWithHoleAvoidance(List<Node> nodes)
@@ -1193,17 +1258,19 @@ namespace CalcFittingsPlugin
 
         private bool ShouldMergeZones(ZoneSolution zone1, ZoneSolution zone2)
         {
-            double distance = CalculateDistanceBetweenZones(zone1, zone2);
+            // Проверяем схожесть требуемого армирования
+            double maxLoad1 = zone1.Nodes.Max(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max());
+            double maxLoad2 = zone2.Nodes.Max(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max());
+            double loadDiff = Math.Abs(maxLoad1 - maxLoad2);
 
-            double loadDiff = Math.Abs(
-                zone1.Nodes.Max(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max()) -
-                zone2.Nodes.Max(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max()));
+            // Проверяем пересечение с отверстиями
+            var mergedBoundary = CalculateMergedBoundary(zone1.Boundary, zone2.Boundary);
+            bool intersectsWithOpening = Openings.Any(o => RectanglesIntersect(mergedBoundary, o.Boundary));
 
-            return distance < 2.0 &&
-                   loadDiff < 1.0 &&
-                   !Openings.Any(o => RectanglesIntersect(
-                       CalculateMergedBoundary(zone1.Boundary, zone2.Boundary),
-                       o.Boundary));
+            // Проверяем, что зоны относятся к одной плите
+            bool sameSlab = zone1.Nodes.First().SlabId == zone2.Nodes.First().SlabId;
+
+            return loadDiff < 1.0 && !intersectsWithOpening && sameSlab;
         }
 
         private Rectangle CalculateMergedBoundary(Rectangle a, Rectangle b)
