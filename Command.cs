@@ -725,12 +725,17 @@ namespace CalcFittingsPlugin
         public List<Node> Nodes { get; set; }
         public RebarConfig Rebar { get; set; }
         public double Spacing { get; set; } // Шаг арматуры (мм)
-        public double StandardLength { get; set; } // Длина стержней (мм)
+        public double StandardLengthX { get; set; } // Длина стержней (мм) X
+        public double StandardLengthY { get; set; } // Длина стержней (мм) X
         public Rectangle Boundary { get; set; }
         public double TotalCost { get; set; }
         public double TotalLength { get; set; } // Общая длина арматуры (м)
         public double AreaX { get; set; } // Площадь арматуры в X направлении (мм²/м)
         public double AreaY { get; set; } // Площадь арматуры в Y направлении (мм²/м)
+        public double XBarsCount { get; set; } // Количество стержней в направлении X
+        public double YBarsCount { get; set; } // Количество стержней в направлении Y
+        public double XBarLength { get; set; } // Длина стержней в направлении X (м)
+        public double YBarLength { get; set; } // Длина стержней в направлении Y (м)
     }
 
     public class Rectangle
@@ -1277,6 +1282,13 @@ namespace CalcFittingsPlugin
             return optimized;
         }
 
+        private double OptimizeRebarLength(double requiredLength, double barsCount, double standardLength)
+        {
+            // Расчет оптимального количества стержней стандартной длины для покрытия требуемой длины
+            double barsNeeded = Math.Ceiling(requiredLength / standardLength);
+            return barsNeeded * standardLength * barsCount;
+        }
+
         private List<List<Node>> SplitClusterAroundOpenings(List<Node> cluster, Rectangle boundary, List<Opening> openings)
         {
             var intersecting = openings
@@ -1469,122 +1481,228 @@ namespace CalcFittingsPlugin
             return CreateZoneSolution(nodes, boundary);
         }
 
-        private ZoneSolution CreateZoneSolution(List<Node> nodes, Rectangle boundary, RebarConfig specificRebar = null)
+        private ZoneSolution CreateZoneSolution(List<Node> nodes, Rectangle initialBoundary, RebarConfig specificRebar = null)
         {
-            if (nodes == null || nodes.Count == 0 || boundary.Width <= 0 || boundary.Height <= 0)
+            if (nodes == null || nodes.Count == 0 || initialBoundary.Width <= 0 || initialBoundary.Height <= 0)
                 return null;
 
-            // Конвертируем требуемое армирование из см²/м в мм²/м
-            double requiredAs = nodes
-                .Select(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max())
-                .Max() * 100;
-
-            // 1. Находим все возможные варианты арматуры, удовлетворяющие требованиям
+            double requiredAs = nodes.Max(n => new[] { n.As1X, n.As2X, n.As3Y, n.As4Y }.Max()) * 100;
             var possibleConfigs = new List<ZoneSolution>();
+            var rebarOptions = specificRebar != null ? new List<RebarConfig> { specificRebar } : AvailableRebars;
 
-            // Перебираем все доступные длины стержней
-            foreach (var length in StandardLengths)
+            // Максимальная доступная длина стержней
+            double maxAvailableLength = StandardLengths.Max() / 1000.0; // в метрах
+
+            foreach (var rebar in rebarOptions)
             {
-                // Перебираем все доступные конфигурации арматуры
-                var rebarOptions = specificRebar != null
-                    ? new List<RebarConfig> { specificRebar }
-                    : AvailableRebars;
-
-                foreach (var rebar in rebarOptions)
+                foreach (var spacing in rebar.AvailableSpacings)
                 {
-                    foreach (var spacing in rebar.AvailableSpacings)
+                    double areaPerMeter = Math.PI * Math.Pow(rebar.Diameter, 2) / 4 * (1000 / spacing);
+                    if (areaPerMeter < requiredAs) continue;
+
+                    // Корректируем границы зоны под доступные длины стержней
+                    var adjustedBoundary = AdjustBoundaryToAvailableLengths(
+                        initialBoundary,
+                        maxAvailableLength,
+                        nodes.Where(n => initialBoundary.Contains(n.X, n.Y)).ToList());
+
+                    // Проверяем, что после корректировки зона покрывает все узлы
+                    if (!nodes.Where(n => initialBoundary.Contains(n.X, n.Y)).ToList().All(n => adjustedBoundary.Contains(n.X, n.Y)))
+                        continue;
+
+                    // Расчет параметров для X направления (горизонтальные стержни)
+                    var xResult = CalculateDirectionParams(
+                        directionLength: adjustedBoundary.Width,
+                        zoneSize: adjustedBoundary.Height,
+                        spacing: spacing);
+
+                    // Расчет параметров для Y направления (вертикальные стержни)
+                    var yResult = CalculateDirectionParams(
+                        directionLength: adjustedBoundary.Height,
+                        zoneSize: adjustedBoundary.Width,
+                        spacing: spacing);
+
+                    if (xResult.BarsCount < MinRebarPerDirection || yResult.BarsCount < MinRebarPerDirection)
+                        continue;
+
+                    double totalCost = (xResult.TotalLength + yResult.TotalLength) * rebar.PricePerMeter;
+
+                    possibleConfigs.Add(new ZoneSolution
                     {
-                        double areaPerMeter = Math.PI * rebar.Diameter * rebar.Diameter / 4 * (1000 / spacing);
-                        if (areaPerMeter < requiredAs)
-                            continue;
-
-                        // Рассчитываем количество стержней в каждом направлении
-                        double xBars = Math.Ceiling(boundary.Height / (spacing / 1000));
-                        double yBars = Math.Ceiling(boundary.Width / (spacing / 1000));
-
-                        // Проверяем минимальное количество стержней
-                        if (xBars < MinRebarPerDirection || yBars < MinRebarPerDirection)
-                            continue;
-
-                        // Рассчитываем общую стоимость
-                        double totalLength = (xBars + yBars) * (length / 1000);
-                        double totalCost = totalLength * rebar.PricePerMeter;
-
-                        possibleConfigs.Add(new ZoneSolution
-                        {
-                            Nodes = nodes,
-                            Rebar = rebar,
-                            Spacing = spacing,
-                            StandardLength = length,
-                            Boundary = boundary,
-                            TotalCost = totalCost,
-                            TotalLength = totalLength,
-                            AreaX = areaPerMeter,
-                            AreaY = areaPerMeter
-                        });
-                    }
+                        Nodes = nodes,
+                        Rebar = rebar,
+                        Spacing = spacing,
+                        StandardLengthX = xResult.UsedLength,
+                        StandardLengthY = yResult.UsedLength,
+                        Boundary = adjustedBoundary,
+                        TotalCost = totalCost,
+                        TotalLength = xResult.TotalLength + yResult.TotalLength,
+                        AreaX = areaPerMeter,
+                        AreaY = areaPerMeter,
+                        XBarsCount = xResult.BarsCount,
+                        YBarsCount = yResult.BarsCount,
+                        XBarLength = adjustedBoundary.Width,
+                        YBarLength = adjustedBoundary.Height
+                    });
                 }
             }
 
-            // 2. Если нашли подходящие варианты - возвращаем самый дешевый
-            if (possibleConfigs.Count > 0)
-                return possibleConfigs.OrderBy(c => c.TotalCost).First();
+            return possibleConfigs.OrderBy(c => c.TotalCost).FirstOrDefault();
+        }
 
-            // 3. Если не нашли - создаем минимально возможную зону с 2 стержнями
-            return CreateMinimalZone(nodes, boundary, requiredAs);
+        private Rectangle AdjustBoundaryToAvailableLengths(Rectangle boundary, double maxLength, List<Node> nodes)
+        {
+            // Если текущие размеры зоны уже соответствуют доступным длинам
+            if (boundary.Width <= maxLength && boundary.Height <= maxLength)
+                return boundary;
+
+            // Варианты разбиения зоны
+            var possibleBoundaries = new List<Rectangle>();
+
+            // Вариант 1: уменьшаем ширину до максимальной доступной длины
+            if (boundary.Width > maxLength)
+            {
+                possibleBoundaries.Add(new Rectangle(
+                    boundary.X,
+                    boundary.Y,
+                    maxLength,
+                    boundary.Height
+                ));
+            }
+
+            // Вариант 2: уменьшаем высоту до максимальной доступной длины
+            if (boundary.Height > maxLength)
+            {
+                possibleBoundaries.Add(new Rectangle(
+                    boundary.X,
+                    boundary.Y,
+                    boundary.Width,
+                    maxLength
+                ));
+            }
+
+            // Вариант 3: уменьшаем оба размера до максимальной доступной длины
+            if (boundary.Width > maxLength && boundary.Height > maxLength)
+            {
+                possibleBoundaries.Add(new Rectangle(
+                    boundary.X,
+                    boundary.Y,
+                    maxLength,
+                    maxLength
+                ));
+            }
+
+            // Выбираем вариант с минимальной площадью, который покрывает все узлы
+            return possibleBoundaries
+                .OrderBy(b => b.Width * b.Height)
+                .FirstOrDefault(b => nodes.All(n => b.Contains(n.X, n.Y)))
+                ?? boundary; // Если не нашли подходящий вариант, возвращаем исходный
+        }
+
+        private (int BarsCount, double UsedLength, double TotalLength) CalculateDirectionParams(
+            double directionLength, // Длина стержней в этом направлении (м)
+            double zoneSize,       // Размер зоны в перпендикулярном направлении (м)
+            double spacing)        // Шаг арматуры (мм)
+        {
+            // Количество стержней (не менее минимально допустимого)
+            int barsCount = (int)Math.Max(
+                (int)Math.Ceiling(zoneSize * 1000 / spacing),
+                MinRebarPerDirection);
+
+            // Требуемая длина в мм
+            double requiredLengthMm = directionLength * 1000;
+
+            // Выбираем стандартную длину, полностью покрывающую требуемую длину
+            double optimalLength = StandardLengths
+                .Where(l => l >= requiredLengthMm)
+                .OrderBy(l => l) // Берем минимально возможную
+                .FirstOrDefault();
+
+            // Если не нашли подходящую длину, возвращаем недопустимый вариант
+            if (optimalLength == 0)
+                return (0, 0, 0);
+
+            // Общая длина арматуры в метрах
+            double totalLength = barsCount * optimalLength / 1000;
+
+            return (barsCount, optimalLength, totalLength);
         }
 
         private ZoneSolution CreateMinimalZone(List<Node> nodes, Rectangle boundary, double requiredAs)
         {
-            // Находим минимальный диаметр, удовлетворяющий требованиям по площади
-            var suitableRebars = AvailableRebars
-                .SelectMany(r => r.AvailableSpacings.Select(s => new
-                {
-                    Rebar = r,
-                    Spacing = s,
-                    Area = Math.PI * r.Diameter * r.Diameter / 4 * (1000 / s)
-                }))
-                .Where(x => x.Area >= requiredAs)
-                .OrderBy(x => x.Rebar.PricePerMeter)
-                .ToList();
+            var possibleConfigs = new List<ZoneSolution>();
+            double zoneWidth = boundary.Width;
+            double zoneHeight = boundary.Height;
 
-            if (suitableRebars.Count == 0)
-                return null;
-
-            // Берем самый дешевый вариант
-            var bestConfig = suitableRebars.First();
-
-            // Рассчитываем минимальные размеры зоны для 2 стержней
-            double minWidth = bestConfig.Spacing / 1000 * (MinRebarPerDirection - 1);
-            double minHeight = bestConfig.Spacing / 1000 * (MinRebarPerDirection - 1);
-
-            // Корректируем границы зоны, если она слишком мала
-            var adjustedBoundary = new Rectangle(
-                boundary.X,
-                boundary.Y,
-                Math.Max(boundary.Width, minWidth),
-                Math.Max(boundary.Height, minHeight)
-            );
-
-            // Используем минимальную длину стержней для экономии
-            double length = StandardLengths.Min();
-
-            // Рассчитываем стоимость (2 стержня в каждом направлении)
-            double totalLength = MinRebarPerDirection * 2 * (length / 1000);
-            double totalCost = totalLength * bestConfig.Rebar.PricePerMeter;
-
-            return new ZoneSolution
+            foreach (var rebar in AvailableRebars)
             {
-                Nodes = nodes,
-                Rebar = bestConfig.Rebar,
-                Spacing = bestConfig.Spacing,
-                StandardLength = length,
-                Boundary = adjustedBoundary,
-                TotalCost = totalCost,
-                TotalLength = totalLength,
-                AreaX = bestConfig.Area,
-                AreaY = bestConfig.Area
-            };
+                foreach (var spacing in rebar.AvailableSpacings)
+                {
+                    // Проверяем соответствие требованиям по армированию
+                    double areaPerMeter = Math.PI * rebar.Diameter * rebar.Diameter / 4 * (1000 / spacing);
+                    if (areaPerMeter < requiredAs) continue;
+
+                    // Рассчитываем количество стержней в каждом направлении
+                    double xBars = (int)Math.Ceiling(zoneHeight * 1000 / spacing);
+                    double yBars = (int)Math.Ceiling(zoneWidth * 1000 / spacing);
+                    xBars = Math.Max(xBars, MinRebarPerDirection);
+                    yBars = Math.Max(yBars, MinRebarPerDirection);
+
+                    // Оптимальные длины стержней (не больше реальных размеров зоны)
+                    double xBarLength = zoneWidth;
+                    double yBarLength = zoneHeight;
+
+                    // Подбираем оптимальные стандартные длины для минимизации отходов
+                    var xLength = StandardLengths
+                        .Where(l => l >= xBarLength)
+                        .OrderBy(l => l - xBarLength)
+                        .FirstOrDefault();
+
+                    var yLength = StandardLengths
+                        .Where(l => l >= yBarLength)
+                        .OrderBy(l => l - yBarLength)
+                        .FirstOrDefault();
+
+                    // Если не нашли подходящую стандартную длину, используем минимально возможную
+                    if (xLength == 0) xLength = StandardLengths.Min();
+                    if (yLength == 0) yLength = StandardLengths.Min();
+
+                    // Рассчитываем общую длину и стоимость
+                    double totalXLength = xBars * xLength / 1000; // переводим в метры
+                    double totalYLength = yBars * yLength / 1000;
+                    double totalLength = totalXLength + totalYLength;
+                    double totalCost = totalLength * rebar.PricePerMeter;
+
+                    possibleConfigs.Add(new ZoneSolution
+                    {
+                        Nodes = nodes,
+                        Rebar = rebar,
+                        Spacing = spacing,
+                        StandardLengthX = xLength,
+                        StandardLengthY = yLength,
+                        Boundary = boundary,
+                        TotalCost = totalCost,
+                        TotalLength = totalLength,
+                        AreaX = areaPerMeter,
+                        AreaY = areaPerMeter,
+                        XBarsCount = xBars,
+                        YBarsCount = yBars,
+                        XBarLength = xBarLength,
+                        YBarLength = yBarLength
+                    });
+                }
+            }
+
+            // Возвращаем вариант с минимальной стоимостью
+            return possibleConfigs.OrderBy(c => c.TotalCost).FirstOrDefault();
+        }
+
+        // Вспомогательный метод для расчета отходов при раскрое
+        private double CalculateWaste(double standardLength, double requiredLength)
+        {
+            if (requiredLength <= 0 || standardLength <= 0) return double.MaxValue;
+            int barsNeeded = (int)Math.Ceiling(requiredLength / standardLength);
+            return (barsNeeded * standardLength) - requiredLength;
         }
         #endregion
 
