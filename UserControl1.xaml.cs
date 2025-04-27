@@ -512,7 +512,7 @@ namespace CalcFittingsPlugin
 
 
                 //Запускаем расчетный алгоритм
-                bestSolutions = optimizer.FindBestSolutions(slabsNodes, NumOfSol);
+                bestSolutions = optimizer.FindBestSolutions(slabsNodes, NumOfSol, floors);
 
                 progressWindow.UpdateProgress(100, "Завершено");
                 await Task.Delay(1000); // Даем время увидеть 100%
