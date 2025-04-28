@@ -778,7 +778,7 @@ namespace CalcFittingsPlugin
             {
                 foreach (var node in nodes)
                 {
-                    var boundary = new Rectangle(node.X - 0.5, node.Y - 0.5, 1.0, 1.0);
+                    var boundary = new Rectangle(node.X - 0.2, node.Y - 0.2, 0.4, 0.4);
                     var zone = CreateOptimalZone(new List<Node> { node }, boundary);
                     if (zone != null) solution.Zones.Add(zone);
                 }
@@ -1155,7 +1155,7 @@ namespace CalcFittingsPlugin
 
             foreach (var node in uncoveredNodes)
             {
-                var boundary = new Rectangle(node.X - 0.5, node.Y - 0.5, 1.0, 1.0);
+                var boundary = new Rectangle(node.X - 0.2, node.Y - 0.2, 0.4, 0.4);
                 var zone = CreateOptimalZone(new List<Node> { node }, boundary);
                 if (zone != null) solution.Zones.Add(zone);
             }
@@ -1298,7 +1298,7 @@ namespace CalcFittingsPlugin
 
         private ZoneSolution CreateSingleNodeZone(Node node)
         {
-            var boundary = new Rectangle(node.X - 0.5, node.Y - 0.5, 1.0, 1.0);
+            var boundary = new Rectangle(node.X - 0.2, node.Y - 0.2, 0.4, 0.4);
             return CreateOptimalZone(new List<Node> { node }, boundary);
         }
 
