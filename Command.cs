@@ -683,10 +683,10 @@ namespace CalcFittingsPlugin
             var population = InitializePopulationWithCoverage(slabsNodes);
 
             // Эволюционный процесс с проверкой покрытия
-           /* for (int gen = 0; gen < Generations; gen++)
-            {
-                population = EvolvePopulationWithCoverageCheck(population, slabsNodes);
-            }*/
+            for (int gen = 0; gen < Generations; gen++)
+            { 
+                population = EvolvePopulation(population, slabsNodes);
+            }
 
             // Возврат лучших уникальных решений с минимальной ценой
             return GetBestUniqueSolutions(population, solutionCount);
@@ -697,13 +697,41 @@ namespace CalcFittingsPlugin
             var population = new List<ReinforcementSolution>();
             var allNodes = slabsNodes.SelectMany(x => x).ToList();
 
-            // 3. Случайные решения с гарантированным покрытием
+            // Случайные решения с гарантированным покрытием
             for (int i = 0; i < PopulationSize; i++)
             {
                 population.Add(CreateMinimalCoverageSolution(slabsNodes));
             }
 
             return population;
+        }
+
+        public List<ReinforcementSolution> EvolvePopulation(List<ReinforcementSolution> population, List<List<Node>> slabsNodes)
+        {
+            var evolvedPopulation = new List<ReinforcementSolution>();
+
+            var elites = population.OrderBy(s => s.TotalCost).Take(EliteCount).ToList();
+            evolvedPopulation.AddRange(elites.Select(e => e.ShallowCopy()));
+
+            while (evolvedPopulation.Count < PopulationSize)
+            {
+                var parent1 = TournamentSelection(population);
+                var parent2 = TournamentSelection(population);
+
+                var child = Crossover(parent1, parent2, slabsNodes);
+                evolvedPopulation.Add(child);
+            }
+
+            // Мутация
+            for (int i = EliteCount; i < evolvedPopulation.Count; i++)
+            {
+                if (Random.NextDouble() < MutationRate)
+                {
+                    MutateSolution(evolvedPopulation[i], slabsNodes);
+                }
+            }
+
+            return evolvedPopulation;
         }
 
         private ReinforcementSolution CreateMinimalCoverageSolution(List<List<Node>> slabsNodes)
