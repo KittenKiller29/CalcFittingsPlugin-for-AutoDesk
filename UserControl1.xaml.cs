@@ -412,6 +412,32 @@ namespace CalcFittingsPlugin
                     MessageBox.Show("Не задано максимально допустимое число получаемых решений.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     throw new Exception();
                 }
+                double as1x = -1;
+                double as2x = -1;
+                double as3y = -1;
+                double as4y = -1;
+                if (As1X.IsChecked.HasValue && As1X.IsChecked.Value)
+                {
+                    as1x = MainFit;
+                }
+                if (As2X.IsChecked.HasValue && As2X.IsChecked.Value)
+                {
+                    as2x = MainFit;
+                }
+                if (As3Y.IsChecked.HasValue && As3Y.IsChecked.Value)
+                {
+                    as3y = MainFit;
+                }
+                if (As4Y.IsChecked.HasValue && As4Y.IsChecked.Value)
+                {
+                    as4y = MainFit;
+                }
+
+                if(as1x == -1 && as2x == -1 && as3y == -1 && as4y == -1)
+                {
+                    MessageBox.Show("Не выбрано ни одно направление для расчета.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    throw new Exception();
+                }
 
                 //Валидируем данные арматуры, чтобы их можно было использовать
                 //в зонах дополнительного армирования
@@ -434,10 +460,10 @@ namespace CalcFittingsPlugin
                     DataRow row = FitDataTable.Rows[i];
 
                     bool isWall = row[Tools.HeadersTemplate[0]].ToString() == "Wall";
-                    bool isThin1 = Convert.ToDouble(row[Tools.HeadersTemplate[6]]) < MainFit;
-                    bool isThin2 = Convert.ToDouble(row[Tools.HeadersTemplate[7]]) < MainFit;
-                    bool isThin3 = Convert.ToDouble(row[Tools.HeadersTemplate[8]]) < MainFit;
-                    bool isThin4 = Convert.ToDouble(row[Tools.HeadersTemplate[9]]) < MainFit;
+                    bool isThin1 = (as1x == -1) ? true : Convert.ToDouble(row[Tools.HeadersTemplate[6]]) <= as1x;
+                    bool isThin2 = (as2x == -1) ? true : Convert.ToDouble(row[Tools.HeadersTemplate[7]]) <= as2x;
+                    bool isThin3 = (as3y == -1) ? true : Convert.ToDouble(row[Tools.HeadersTemplate[8]]) <= as3y;
+                    bool isThin4 = (as4y == -1) ? true : Convert.ToDouble(row[Tools.HeadersTemplate[9]]) <= as4y;
 
                     bool shouldSkip = isWall || (isThin1 && isThin2 && isThin3 && isThin4);
 
@@ -452,7 +478,7 @@ namespace CalcFittingsPlugin
                 var optimizer = new ReinforcementOptimizer
                 {
                     Openings = ReinforcementOptimizer.GetOpeningsFromRevit(floors),
-                    BasicReinforcement = new[] { MainFit, MainFit, MainFit, MainFit },
+                    BasicReinforcement = new[] { as1x, as2x, as3y, as4y },
                     StandardLengths = Length.AsEnumerable()
                     .Select(r => Convert.ToDouble(r["Length"]))
                     .ToList(),
@@ -491,10 +517,10 @@ namespace CalcFittingsPlugin
                                 Y = Convert.ToDouble(r[Tools.HeadersTemplate[3]]),
                                 ZCenter = Convert.ToDouble(r[Tools.HeadersTemplate[4]]),
                                 ZMin = Convert.ToDouble(r[Tools.HeadersTemplate[5]]),
-                                As1X = Convert.ToDouble(r[Tools.HeadersTemplate[6]]),
-                                As2X = Convert.ToDouble(r[Tools.HeadersTemplate[7]]),
-                                As3Y = Convert.ToDouble(r[Tools.HeadersTemplate[8]]),
-                                As4Y = Convert.ToDouble(r[Tools.HeadersTemplate[9]]),
+                                As1X = (as1x == -1) ? -1 : Convert.ToDouble(r[Tools.HeadersTemplate[6]]),
+                                As2X = (as2x == -1) ? -1 : Convert.ToDouble(r[Tools.HeadersTemplate[7]]),
+                                As3Y = (as3y == -1) ? -1 : Convert.ToDouble(r[Tools.HeadersTemplate[8]]),
+                                As4Y = (as4y == -1) ? -1 : Convert.ToDouble(r[Tools.HeadersTemplate[9]]),
                                 SlabId = i
                             })
                             .ToList());

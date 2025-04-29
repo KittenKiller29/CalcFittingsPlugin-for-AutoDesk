@@ -194,8 +194,14 @@
                         <Label Content="Значение основного армирования, см^2/м." Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
                         <TextBox Name="ArmTextBox" Width="152" Margin="69,1,0,18" TextChanged="ArmTextBox_TextChanged" PreviewTextInput="ArmTextBox_PreviewTextInput"/>
                     </StackPanel>
-
-                    <DataGrid Margin="0,-5,20,0" Height="261" BorderBrush="Gray" Name="SolutionsView" AutoGenerateColumns="False"
+                    <StackPanel Orientation="Horizontal" Margin="0,-6,0,0">
+                        <Label Content="Выполнять расчеты для направлений:" Margin="0,-6,10,10" Background="{x:Null}" FontWeight="Bold"/>
+                        <CheckBox Content="As1X" Name="As1X" Margin="38,0,0,0"/>
+                        <CheckBox Content="As2X" Name="As2X" Margin="10,0,0,0"/>
+                        <CheckBox Content="As3Y" Name="As3Y" Margin="10,0,0,0"/>
+                        <CheckBox Content="As4Y" Name="As4Y" Margin="10,0,0,0"/>
+                    </StackPanel>
+                    <DataGrid Margin="0,-5,20,0" Height="237" BorderBrush="Gray" Name="SolutionsView" AutoGenerateColumns="False"
                                   HeadersVisibility="Column" CanUserResizeColumns="False" CanUserResizeRows="False"
                                   CanUserReorderColumns="False" CanUserSortColumns="False" CanUserAddRows="False"
                                   RowStyle="{StaticResource {x:Type DataGridRow}}"
