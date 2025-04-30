@@ -653,6 +653,116 @@ namespace CalcFittingsPlugin
         }
     }
 
+    public class SlabBoundaryChecker
+    {
+        /// <summary>
+        /// Проверяет, что прямоугольная зона полностью находится внутри полигона плиты
+        /// </summary>
+        /// <param name="zoneBoundary">Границы зоны армирования</param>
+        /// <param name="slabPolygon">Границы плиты (список точек по часовой стрелке)</param>
+        /// <returns>True если зона полностью внутри плиты</returns>
+        public static bool IsZoneInsideSlab(Rectangle zoneBoundary, List<XYZ> slabPolygon)
+        {
+            // 1. Проверяем все углы зоны
+            var zoneCorners = new List<XYZ>
+        {
+            new XYZ(zoneBoundary.X, zoneBoundary.Y, 0),
+            new XYZ(zoneBoundary.X + zoneBoundary.Width, zoneBoundary.Y, 0),
+            new XYZ(zoneBoundary.X + zoneBoundary.Width, zoneBoundary.Y + zoneBoundary.Height, 0),
+            new XYZ(zoneBoundary.X, zoneBoundary.Y + zoneBoundary.Height, 0)
+        };
+
+            foreach (var corner in zoneCorners)
+            {
+                if (!IsPointInsidePolygon(corner, slabPolygon))
+                    return false;
+            }
+
+            // 2. Дополнительная проверка на случай, когда зона полностью содержит плиту
+            if (zoneBoundary.Width * zoneBoundary.Height > GetPolygonArea(slabPolygon))
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Проверяет, находится ли точка внутри полигона (алгоритм ray casting)
+        /// </summary>
+        private static bool IsPointInsidePolygon(XYZ point, List<XYZ> polygon)
+        {
+            int count = polygon.Count;
+            bool inside = false;
+
+            for (int i = 0, j = count - 1; i < count; j = i++)
+            {
+                if (((polygon[i].Y > point.Y) != (polygon[j].Y > point.Y)) &&
+                    (point.X < (polygon[j].X - polygon[i].X) * (point.Y - polygon[i].Y) /
+                              (polygon[j].Y - polygon[i].Y) + polygon[i].X))
+                {
+                    inside = !inside;
+                }
+            }
+
+            return inside;
+        }
+
+        /// <summary>
+        /// Вычисляет площадь полигона (по формуле шнурков)
+        /// </summary>
+        private static double GetPolygonArea(List<XYZ> polygon)
+        {
+            double area = 0;
+            int count = polygon.Count;
+
+            for (int i = 0; i < count; i++)
+            {
+                int j = (i + 1) % count;
+                area += polygon[i].X * polygon[j].Y;
+                area -= polygon[j].X * polygon[i].Y;
+            }
+
+            return Math.Abs(area / 2);
+        }
+
+        /// <summary>
+        /// Получает границы плиты из Revit элемента
+        /// </summary>
+        public static List<XYZ> GetSlabBoundary(Floor slab)
+        {
+            var boundary = new List<XYZ>();
+
+            Options geomOptions = new Options
+            {
+                ComputeReferences = true,
+                DetailLevel = ViewDetailLevel.Fine
+            };
+
+            using (GeometryElement geomElem = slab.get_Geometry(geomOptions))
+            {
+                foreach (GeometryObject geomObj in geomElem)
+                {
+                    if (geomObj is Solid solid)
+                    {
+                        foreach (Face face in solid.Faces)
+                        {
+                            if (face is PlanarFace planarFace)
+                            {
+                                var curveLoop = planarFace.GetEdgesAsCurveLoops().FirstOrDefault();
+                                if (curveLoop != null)
+                                {
+                                    boundary = curveLoop.Select(c => c.GetEndPoint(0)).ToList();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return boundary;
+        }
+    }
+
     public class ReinforcementOptimizer
     {
         // Конфигурация алгоритма
@@ -660,9 +770,9 @@ namespace CalcFittingsPlugin
         public List<double> StandardLengths { get; set; }
         public double[] BasicReinforcement { get; set; }
         public List<Opening> Openings { get; set; } = new List<Opening>();
-        public int PopulationSize { get; set; } = 50;
-        public int Generations { get; set; } = 100;
-        public double MutationRate { get; set; } = 0.3;
+        public int PopulationSize { get; set; } = 30;
+        public int Generations { get; set; } = 500;
+        public double MutationRate { get; set; } = 1;
         public int EliteCount { get; set; } = 5;
         public double MinRebarPerDirection { get; set; } = 2;
 
@@ -701,6 +811,8 @@ namespace CalcFittingsPlugin
             for (int i = 0; i < PopulationSize; i++)
             {
                 population.Add(CreateMinimalCoverageSolution(slabsNodes));
+                //Все решения одинаковые, считаем их идеально приспосболенными на старте
+                population[i].FitnesCost = population[i].TotalCost;
             }
 
             return population;
@@ -710,28 +822,229 @@ namespace CalcFittingsPlugin
         {
             var evolvedPopulation = new List<ReinforcementSolution>();
 
-            var elites = population.OrderBy(s => s.TotalCost).Take(EliteCount).ToList();
+            var elites = population.OrderBy(s => s.FitnesCost).Take(EliteCount).ToList();
             evolvedPopulation.AddRange(elites.Select(e => e.ShallowCopy()));
 
-            while (evolvedPopulation.Count < PopulationSize)
+            /*while (evolvedPopulation.Count < PopulationSize)
             {
                 var parent1 = TournamentSelection(population);
                 var parent2 = TournamentSelection(population);
 
                 var child = Crossover(parent1, parent2, slabsNodes);
                 evolvedPopulation.Add(child);
-            }
+            }*/
+
+            for (int i = EliteCount; i < PopulationSize; i++)
+                evolvedPopulation.Add(population[i]);
 
             // Мутация
-            for (int i = EliteCount; i < evolvedPopulation.Count; i++)
+            for (int i = EliteCount; i < PopulationSize; i++)
             {
                 if (Random.NextDouble() < MutationRate)
                 {
-                    MutateSolution(evolvedPopulation[i], slabsNodes);
+                    Mutate(evolvedPopulation[i]);
                 }
             }
 
+            //Корректируем решения в популяции, объединяем перекрывающиеся зоны
+            for (int i = 0; i < PopulationSize; i++)
+                MergeAllOverlappingZones(evolvedPopulation[i]);
+
+            //Пересчитываем приспособленность решений
+                /*   for (int i = 0; i < evolvedPopulation.Count; i++)
+                   {
+                       evolvedPopulation[i].FitnesCost = evolvedPopulation[i].TotalCost;
+
+                       // 1. Проверка на пересечение с отверстиями
+                       for (int j = 0; j < Openings.Count; j++)
+                       {
+                           for (int k = 0; k < evolvedPopulation[i].Zones.Count; k++)
+                           {
+                               if (evolvedPopulation[i].Zones[k].Boundary.Intersects(Openings[j].Boundary))
+                               {
+                                   evolvedPopulation[i].FitnesCost += 1e6;
+                                   break;
+                               }
+                           }
+                       }
+
+
+                       // 2. Проверка на выход за границы плиты
+
+                       for (int j = 0; j < evolvedPopulation[i].Zones.Count; j++)
+                       {
+                           Floor slabElement = _floors[evolvedPopulation[i].Zones[j].ZoneID];
+                           if (!SlabBoundaryChecker.IsZoneInsideSlab(evolvedPopulation[i].Zones[j].Boundary, SlabBoundaryChecker.GetSlabBoundary(slabElement)))
+                           {
+                               evolvedPopulation[i].FitnesCost += 1e6;
+                               break;
+                           }
+                       }
+
+                   }*/
+
             return evolvedPopulation;
+        }
+
+
+        public void Mutate(ReinforcementSolution solution)
+        {
+            // 1. Объединение двух случайных зон (40% вероятности)
+            if (Random.NextDouble() < 1 && solution.Zones.Count > 1)
+            {
+                int idx1 = Random.Next(solution.Zones.Count);
+                int idx2 = Random.Next(solution.Zones.Count);
+                //Даем 20 попыток найти две зоны, у которых расстояние меньше 2 метров
+                for (int i = 0; i < 10; i++)
+                {
+                    idx1 = Random.Next(solution.Zones.Count);
+                    idx2 = Random.Next(solution.Zones.Count);
+                    if (ZoneSolution.CalculateDistanceBetweenZones(solution.Zones[idx1], solution.Zones[idx2]) <= 2)
+                    {
+                        break;
+                    }
+                }
+
+                if (solution.Zones[idx1].ZoneID != solution.Zones[idx2].ZoneID || ZoneSolution.CalculateDistanceBetweenZones(solution.Zones[idx1], solution.Zones[idx2]) > 2)
+                    return;
+
+                if (idx1 != idx2)
+                {
+
+                    var mergedNodes = solution.Zones[idx1].Nodes.Union(solution.Zones[idx2].Nodes).ToList();
+                    var mergedBoundary = Rectangle.Union(solution.Zones[idx1].Boundary, solution.Zones[idx2].Boundary);
+
+                    //Создаем зону
+
+                    var mergedZone = CreateOptimalZone(mergedNodes, mergedBoundary);
+
+                    if (mergedZone != null)
+                    {
+                        mergedZone.ZoneID = solution.Zones[idx1].ZoneID;
+                        solution.Zones.RemoveAt(Math.Max(idx1, idx2));
+                        solution.Zones.RemoveAt(Math.Min(idx1, idx2));
+                        solution.Zones.Add(mergedZone);
+                    }
+                }
+            }
+
+            // 2. Разделение крупной зоны (30% вероятности)
+            if (Random.NextDouble() < 0)
+            {
+                var largeZone = solution.Zones.FirstOrDefault(z =>
+                    z.Boundary.Width > 2 || z.Boundary.Height > 2);
+                if (largeZone != null)
+                {
+                    solution.Zones.Remove(largeZone);
+                    solution.Zones.AddRange(SplitZone(largeZone));
+                }
+            }
+
+            // 3. Изменение параметров случайной зоны (30% вероятности)
+            /*if (Random.NextDouble() < 1 && solution.Zones.Count > 0)
+            {
+                var zone = solution.Zones[Random.Next(solution.Zones.Count)];
+                var newConfig = GetRandomRebarConfig(zone.Nodes);
+                if (newConfig != null)
+                {
+                    zone.Rebar = newConfig.Rebar;
+                    zone.Spacing = newConfig.Spacing;
+                    zone.TotalCost = ZoneSolution.CalculateZoneCost(zone.Boundary, newConfig.Rebar, newConfig.Spacing);
+                }
+            }*/
+        }
+
+        private void MergeAllOverlappingZones(ReinforcementSolution solution)
+        {
+            bool merged;
+            do
+            {
+                merged = false;
+
+                // Группируем зоны по плитам для более эффективной обработки
+                var zonesBySlab = solution.Zones.GroupBy(z => z.ZoneID);
+
+                foreach (var slabGroup in zonesBySlab)
+                {
+                    var zones = slabGroup.ToList();
+
+                    for (int i = 0; i < zones.Count; i++)
+                    {
+                        for (int j = i + 1; j < zones.Count; j++)
+                        {
+                            if (zones[i].Boundary.Intersects(zones[j].Boundary))
+                            {
+                                // Объединяем перекрывающиеся зоны
+                                var mergedNodes = solution.Zones[i].Nodes.Union(solution.Zones[j].Nodes).ToList();
+                                var mergedBoundary = Rectangle.Union(solution.Zones[i].Boundary, solution.Zones[j].Boundary);
+
+                                //Создаем зону
+
+                                var mergedZone = CreateOptimalZone(mergedNodes, mergedBoundary);
+
+                                if (mergedZone != null)
+                                {
+                                    solution.Zones.Remove(zones[i]);
+                                    solution.Zones.Remove(zones[j]);
+                                    solution.Zones.Add(mergedZone);
+                                    merged = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (merged) break;
+                    }
+                    if (merged) break;
+                }
+            } while (merged); // Повторяем, пока есть что объединять
+        }
+
+        private List<ZoneSolution> SplitZone(ZoneSolution zone)
+        {
+            var newZones = new List<ZoneSolution>();
+            double maxBarLength = StandardLengths.Max() / 1000;
+
+            // Разделяем по большей стороне
+            bool splitX = zone.Boundary.Width > zone.Boundary.Height;
+            double splitCoord = splitX
+                ? zone.Boundary.X + zone.Boundary.Width / 2
+                : zone.Boundary.Y + zone.Boundary.Height / 2;
+
+            var group1 = zone.Nodes
+                .Where(n => splitX ? n.X < splitCoord : n.Y < splitCoord)
+                .ToList();
+
+            var group2 = zone.Nodes
+                .Except(group1)
+                .ToList();
+
+            if (group1.Count > 0)
+            {
+                var boundary1 = CalculateGroupBoundary(group1);
+                var zone1 = CreateOptimalZone(group1, boundary1);
+                zone1.ZoneID = zone.ZoneID;
+                if (zone1 != null) newZones.Add(zone1);
+            }
+
+            if (group2.Count > 0)
+            {
+                var boundary2 = CalculateGroupBoundary(group2);
+                var zone2 = CreateOptimalZone(group2, boundary2);
+                zone2.ZoneID = zone.ZoneID;
+                if (zone2 != null) newZones.Add(zone2);
+            }
+
+            return newZones.Count > 0 ? newZones : new List<ZoneSolution> { zone };
+        }
+
+        private Rectangle CalculateGroupBoundary(List<Node> nodes)
+        {
+            double minX = nodes.Min(n => n.X) - 0.05;
+            double minY = nodes.Min(n => n.Y) - 0.05;
+            double maxX = nodes.Max(n => n.X) + 0.05;
+            double maxY = nodes.Max(n => n.Y) + 0.05;
+
+            return new Rectangle(minX, minY, maxX - minX, maxY - minY);
         }
 
         private ReinforcementSolution CreateMinimalCoverageSolution(List<List<Node>> slabsNodes)
@@ -946,6 +1259,10 @@ namespace CalcFittingsPlugin
     {
         public List<ZoneSolution> Zones { get; set; } = new List<ZoneSolution>();
         public double TotalCost { get; private set; }
+
+        //Цена со штрафом, используем для оценки приспособленности
+        public double FitnesCost { get; set; }
+        
         public double TotalRebarLength => Zones.Sum(z => z.TotalLength);
 
         public void UpdateTotalCost()
@@ -1066,6 +1383,26 @@ namespace CalcFittingsPlugin
             this.YBarLength = other.YBarLength;
         }
 
+        public static double CalculateDistanceBetweenZones(ZoneSolution zone1, ZoneSolution zone2)
+        {
+            // Если зоны пересекаются - расстояние 0
+            if (zone1.Boundary.Intersects(zone2.Boundary))
+                return 0;
+
+            // Вычисляем горизонтальное и вертикальное расстояния
+            double dx = Math.Max(0,
+                Math.Max(zone1.Boundary.X - zone2.Boundary.X - zone2.Boundary.Width,
+                        zone2.Boundary.X - zone1.Boundary.X - zone1.Boundary.Width));
+
+            double dy = Math.Max(0,
+                Math.Max(zone1.Boundary.Y - zone2.Boundary.Y - zone2.Boundary.Height,
+                        zone2.Boundary.Y - zone1.Boundary.Y - zone1.Boundary.Height));
+
+            // Евклидово расстояние
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+
         public override int GetHashCode()
         {
             unchecked
@@ -1087,6 +1424,30 @@ namespace CalcFittingsPlugin
         public double Height { get; set; }
 
         public Rectangle() { }
+
+        public bool Intersects(Rectangle other)
+        {
+            // Проверяем отсутствие пересечения по оси X
+            if (this.X + this.Width < other.X || other.X + other.Width < this.X)
+                return false;
+
+            // Проверяем отсутствие пересечения по оси Y
+            if (this.Y + this.Height < other.Y || other.Y + other.Height < this.Y)
+                return false;
+
+            // Если оба условия не выполнились - прямоугольники пересекаются
+            return true;
+        }
+
+        public static Rectangle Union(Rectangle a, Rectangle b)
+        {
+            double minX = Math.Min(a.X, b.X);
+            double minY = Math.Min(a.Y, b.Y);
+            double maxX = Math.Max(a.X + a.Width, b.X + b.Width);
+            double maxY = Math.Max(a.Y + a.Height, b.Y + b.Height);
+
+            return new Rectangle(minX, minY, maxX - minX, maxY - minY);
+        }
 
         public Rectangle(double x, double y, double width, double height)
         {
