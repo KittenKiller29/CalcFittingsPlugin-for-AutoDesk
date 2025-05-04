@@ -381,6 +381,7 @@ namespace CalcFittingsPlugin
 
             ZonesTable.Clear();
             ApplyBtn.IsEnabled = false;
+            bestSolutions = null;
             //CancelBtn.IsEnabled = false;
 
             //ConsoleLog.AppendText(Tools.CreateLogMessage(Tools.CalcStart));
