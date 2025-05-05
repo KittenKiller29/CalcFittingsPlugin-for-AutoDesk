@@ -847,6 +847,12 @@ namespace CalcFittingsPlugin
         }
     }
 
+    public class Split
+    {
+        public Line line { get; set; }
+        public bool isVertical { get; set; }
+    }
+
     public class ReinforcementOptimizer
     {
         // Конфигурация алгоритма
@@ -854,26 +860,31 @@ namespace CalcFittingsPlugin
         public List<double> StandardLengths { get; set; }
         public double[] BasicReinforcement { get; set; }
         public List<Opening> Openings { get; set; } = new List<Opening>();
-        public int PopulationSize { get; set; } = 50;
-        public int Generations { get; set; } = 3000;
+        public int PopulationSize { get; set; } = 40;
+        public int Generations { get; set; } = 700;
         public double MutationRate { get; set; } = 1;
         public int EliteCount { get; set; } = 5;
         public double MinRebarPerDirection { get; set; } = 2;
+        public int NumOfSol { get; set; } = 5;
 
         private List<List<XYZ>> poligonList;
         private static readonly Random Random = new Random();
         private List<Floor> _floors;
         private SpatialGrid<Node> _spatialGrid;
+        private List<Split> lineList;
 
         public List<ReinforcementSolution> FindBestSolutions(List<List<Node>> slabsNodes, int solutionCount, List<Floor> floors)
         {
             _floors = floors;
             Openings = GetOpeningsFromRevit(floors);
+            lineList = new List<Split>();
 
             // Создаем пространственную сетку для быстрого поиска узлов
             var allNodes = slabsNodes.SelectMany(x => x).ToList();
             _spatialGrid = new SpatialGrid<Node>(allNodes, 2.0);
             poligonList = new List<List<XYZ>>();
+
+
 
             // Инициализация популяции с гарантированным покрытием
             var population = InitializePopulationWithCoverage(slabsNodes);
@@ -881,6 +892,9 @@ namespace CalcFittingsPlugin
             for (int i = 0; i < _floors.Count; i++)
             {
                 poligonList.Add(SlabBoundaryChecker.GetSlabBoundary(_floors[i]));
+                Split split = new Split();
+                (split.line, split.isVertical) = GetOptimalSplitLine(poligonList[i]);
+                lineList.Add(split);
             }
 
             MergeAllOverlappingZones(population[0]);
@@ -954,7 +968,7 @@ namespace CalcFittingsPlugin
             
             population.Add(CreateMinimalCoverageSolution(slabsNodes));
             //Все решения одинаковые, считаем их плохо приспособенными
-            population[0].FitnesCost = 9 * 1e7;
+            population[0].FitnesCost = 1000000 * 1e7;
             
 
             return population;
@@ -966,29 +980,49 @@ namespace CalcFittingsPlugin
         {
             var evolvedPopulation = new List<ReinforcementSolution>();
 
-            var elites = population.OrderBy(s => s.FitnesCost).Take(EliteCount).ToList();
+            var elites = population.OrderBy(s => s.FitnesCost).ThenBy(s => -s.Zones.Average(z => z.Nodes.Count)).Take(EliteCount).ToList();
             evolvedPopulation.AddRange(elites.Select(e => e.ShallowCopy()));
-
-            for (int i = EliteCount; i < PopulationSize; i++)
-                evolvedPopulation.Add(population[i]);
 
             var tmpPop1 = new List<ReinforcementSolution>();
 
             for (int i = EliteCount; i < PopulationSize; i++)
             {
-                tmpPop1.Add(evolvedPopulation[i]);
+                tmpPop1.Add(new ReinforcementSolution());
             }
 
-            // Мутация
-            Parallel.ForEach(tmpPop1, solution =>
+            //Кроссовер
+            //Выбираем среди лучших решений два случаных, объединяем их зоны по разбиению плиты
+            Parallel.For(0, tmpPop1.Count, i =>
             {
-                Mutate(solution);
-                MergeAllOverlappingZones(solution);
+                var rand = new Random();
+                int idx1 = rand.Next(elites.Count);
+                int idx2;
+
+                // Гарантируем, что выбираем разные решения
+                do
+                {
+                    idx2 = rand.Next(elites.Count);
+                } while (idx2 == idx1);
+
+                tmpPop1[i] = CombineEliteZones(elites[idx1], elites[idx2]).ShallowCopy();
+
+                MergeAllOverlappingZones(tmpPop1[i]);
+                tmpPop1[i].UpdateTotalCost();
+            });
+
+
+
+            // Мутация
+            Parallel.For(0, tmpPop1.Count, i =>
+            {
+                Mutate(tmpPop1[i]);
+                MergeAllOverlappingZones(tmpPop1[i]);
+                tmpPop1[i].UpdateTotalCost();
             });
 
 
             for (int i = EliteCount; i < PopulationSize; i++)
-                evolvedPopulation[i] = tmpPop1[i - EliteCount];
+                evolvedPopulation.Add(tmpPop1[i - EliteCount]);
 
 
             for (int i = EliteCount; i < PopulationSize; i++)
@@ -1004,7 +1038,7 @@ namespace CalcFittingsPlugin
             }
 
             //Запускаем параллельную обработку зон и отверстий для оценки приспособленности
-            Parallel.ForEach(tmpPop, solution =>
+            Parallel.For(0, tmpPop.Count, i =>
             {
 
 
@@ -1019,34 +1053,124 @@ namespace CalcFittingsPlugin
                     }
                 }*/
 
-                foreach (var zone in solution.Zones)
+                for (int j = 0; j < tmpPop[i].Zones.Count; j++)
                 {
-                    foreach (var opening in Openings)
+                    for (int k = 0; k < Openings.Count; k++)
                     {
 
-                        double overlapArea = CalculateOverlapArea(zone, opening);
+                        double overlapArea = CalculateOverlapArea(tmpPop[i].Zones[j], Openings[k]);
                         if (overlapArea <= 0) continue;
 
-                        double openingArea = opening.Boundary.Width * opening.Boundary.Height;
+                        double openingArea = Openings[k].Boundary.Width * Openings[k].Boundary.Height;
                         double overlapRatio = overlapArea / openingArea;
 
                         if (overlapRatio > 0.1)
                         {
-                            solution.FitnesCost +=  1e7 * overlapRatio * 5;
+                            tmpPop[i].FitnesCost +=  1e7 * overlapRatio * 10;
                         }
 
                     }
+
+                    //Дополнительно штрафуем за зоны с 1 узлом
+                    //int singleNodeZones = tmpPop[i].Zones.Count(z => z.Nodes.Count <= 1);
+                    //tmpPop[i].FitnesCost += Math.Pow(2, singleNodeZones) * 1e5;
                 }
 
+                //Штрафуем зоны за каждое перекрытие
 
-                solution.FitnesCost += solution.Zones.Count * 1000;
+                for (int j = 0; j < tmpPop[i].Zones.Count; j++)
+                {
+                    for (int k = 0; k < tmpPop[i].Zones.Count; k++)
+                    {
+                        if (j != k &&
+                            tmpPop[i].Zones[j].Boundary.Intersects(tmpPop[i].Zones[k].Boundary))
+                        {
+                            tmpPop[i].FitnesCost += 1e7;
+                        }
+
+                    }
+
+                }
+                    tmpPop[i].FitnesCost += tmpPop[i].Zones.Count * 6500;
                 
             });
 
             for (int i = EliteCount; i < PopulationSize; i++)
                 evolvedPopulation[i] = tmpPop[i - EliteCount];
 
+            //Обновляем стоимость всех решений популяции
+            Parallel.For(0, evolvedPopulation.Count, i =>
+            {
+                evolvedPopulation[i].UpdateTotalCost();
+            });
+
             return evolvedPopulation;
+        }
+
+        private ReinforcementSolution CombineEliteZones(ReinforcementSolution elite1, ReinforcementSolution elite2)
+        {
+            var child = new ReinforcementSolution();
+
+            
+
+            for (int i = 0; i < elite1.Zones.Count; i++)
+            {
+                var zone = new ZoneSolution();
+                zone.CopyFrom(elite1.Zones[i]);
+                if (!lineList[elite1.Zones[i].ZoneID].isVertical)
+                {
+                    if (elite1.Zones[i].Boundary.X > lineList[elite1.Zones[i].ZoneID].line.Origin.X)
+                        child.Zones.Add(zone);
+                }
+                else
+                {
+                    if (elite1.Zones[i].Boundary.Y > lineList[elite1.Zones[i].ZoneID].line.Origin.Y)
+                        child.Zones.Add(zone);
+                }
+
+            }
+
+            for (int i = 0; i < elite2.Zones.Count; i++)
+            {
+                var zone = new ZoneSolution();
+                zone.CopyFrom(elite2.Zones[i]);
+                if (!lineList[elite2.Zones[i].ZoneID].isVertical)
+                {
+                    if (elite2.Zones[i].Boundary.X < lineList[elite2.Zones[i].ZoneID].line.Origin.X)
+                        child.Zones.Add(zone);
+                    
+                }
+                else
+                {
+                    if (elite2.Zones[i].Boundary.Y < lineList[elite2.Zones[i].ZoneID].line.Origin.Y)
+                        child.Zones.Add(zone);
+                }
+
+            }
+
+            child.UpdateTotalCost();
+
+            return child;
+        }
+
+        private (Line splitLine, bool isVertical) GetOptimalSplitLine(List<XYZ> polygon)
+        {
+            // Вычисляем bounding box полигона
+            var minX = polygon.Min(p => p.X);
+            var maxX = polygon.Max(p => p.X);
+            var minY = polygon.Min(p => p.Y);
+            var maxY = polygon.Max(p => p.Y);
+
+            // Разделяем по большей стороне
+            bool isVertical = (maxX - minX) > (maxY - minY);
+
+            // Центр плиты
+            var centerX = (minX + maxX) / 2;
+            var centerY = (minY + maxY) / 2;
+
+            return isVertical
+                ? (Line.CreateBound(new XYZ(centerX, minY, 0), new XYZ(centerX, maxY, 0)), true)
+                : (Line.CreateBound(new XYZ(minX, centerY, 0), new XYZ(maxX, centerY, 0)), false);
         }
 
         private double CalculateOverlapArea(ZoneSolution zone, Opening opening)
@@ -1071,24 +1195,39 @@ namespace CalcFittingsPlugin
 
         public void Mutate(ReinforcementSolution solution)
         {
+            if (Random.NextDouble() > MutationRate) return;
+
             // 1. Объединение двух случайных зон (90% вероятности)
             if (Random.NextDouble() < 0.8 && solution.Zones.Count > 1)
             {
                 int idx1 = Random.Next(solution.Zones.Count);
                 int idx2 = Random.Next(solution.Zones.Count);
-                //Даем 20 попыток найти две зоны, у которых расстояние меньше 2 метров
-                for (int i = 0; i < 10; i++)
+                //Даем 15 попыток найти две зоны, у которых расстояние меньше 2 метров
+                for (int i = 0; i < 15; i++)
                 {
                     idx1 = Random.Next(solution.Zones.Count);
                     idx2 = Random.Next(solution.Zones.Count);
-                    if (ZoneSolution.CalculateDistanceBetweenZones(solution.Zones[idx1], solution.Zones[idx2]) <= 3)
+                    double distanse = ZoneSolution.CalculateDistanceBetweenZones(solution.Zones[idx1], solution.Zones[idx2]);
+                    if ((distanse <= 3) &&
+                        (solution.Zones[idx1].Boundary.Height + solution.Zones[idx2].Boundary.Height <= StandardLengths.Max()) &&
+                        (solution.Zones[idx1].Boundary.Width + solution.Zones[idx2].Boundary.Width <= StandardLengths.Max())
+                        )
                     {
                         break;
                     }
                 }
 
-                if (solution.Zones[idx1].ZoneID != solution.Zones[idx2].ZoneID || ZoneSolution.CalculateDistanceBetweenZones(solution.Zones[idx1], solution.Zones[idx2]) > 3)
+                double distanse1 = ZoneSolution.CalculateDistanceBetweenZones(solution.Zones[idx1], solution.Zones[idx2]);
+                if ((distanse1 > 3) ||
+                    (solution.Zones[idx1].Boundary.Height + solution.Zones[idx2].Boundary.Height > StandardLengths.Max()) ||
+                    (solution.Zones[idx1].Boundary.Width + solution.Zones[idx2].Boundary.Width > StandardLengths.Max())
+                    )
+                {
                     return;
+                }
+
+                //Если зоны имеют перескающиеся узлы и не могут быть покрыты одной зоной – мутация пропускается
+
 
                 if (idx1 != idx2)
                 {
@@ -1246,17 +1385,35 @@ namespace CalcFittingsPlugin
             List<ReinforcementSolution> solutions,
             int count)
         {
-            return solutions
-                .AsParallel()
-                .Select(s => {
-                    s.UpdateTotalCost();
-                    return s;
-                })
-                .GroupBy(s => GetSolutionSignature(s))
-                .Select(g => g.OrderBy(s => s.FitnesCost).First())
-                .OrderBy(s => s.FitnesCost)
-                .Take(count)
+            var ordered = solutions
+                .OrderBy(s => s.FitnesCost)          // Главный критерий - общая стоимость
+                .ThenBy(s => s.Zones.Count)          // Меньше зон - лучше
+                //.ThenBy(s => s.Zones.Count(z => z.Nodes.Count <= 1)) // Меньше одиночных зон
+                //.ThenBy(s => -s.Zones.Average(z => z.Nodes.Count))   // Больше узлов в среднем по зоне
                 .ToList();
+
+            var result = new List<ReinforcementSolution>();
+
+            foreach (ReinforcementSolution sol in ordered)
+            {
+                bool dup = false;
+                //Удаляем дубликаты
+                foreach (ReinforcementSolution tmpsol in result)
+                {
+                    if (tmpsol.TotalCost == sol.TotalCost && tmpsol.Zones.Count == sol.Zones.Count)
+                    {
+                        dup = true;
+                        break;
+                    }
+                }
+
+                if (!dup)
+                    result.Add(sol);
+
+
+            }
+
+            return result.Take(NumOfSol).ToList();
         }
 
         private string GetSolutionSignature(ReinforcementSolution solution)
@@ -1294,6 +1451,9 @@ namespace CalcFittingsPlugin
             //validConfigs.OrderBy(z => z.TotalCost).FirstOrDefault().Boundary.Width += validConfigs.OrderBy(z => z.TotalCost).FirstOrDefault().overHeat;
             //validConfigs.OrderBy(z => z.TotalCost).FirstOrDefault().Boundary.Height += validConfigs.OrderBy(z => z.TotalCost).FirstOrDefault().overHeat;
 
+            if (validConfigs == null)
+                return null;
+
             return validConfigs.OrderBy(z => z.TotalCost).FirstOrDefault();
         }
 
@@ -1305,6 +1465,9 @@ namespace CalcFittingsPlugin
 
             if (boundary.Width < GetOverlapLength(rebar.Diameter))
                 boundary.Width = GetOverlapLength(rebar.Diameter);
+
+            if (boundary.Width > (StandardLengths.Max() / 1000) || boundary.Height > (StandardLengths.Max() / 1000))
+                return null;
 
             double Height = boundary.Height;
             double Width = boundary.Width;
@@ -1791,6 +1954,71 @@ namespace CalcFittingsPlugin
 
             CreateZoneBoundary(doc, view, zone, elevation, floorId);
             CreateRebarVisualization(doc, view, zone, elevation, floorId);
+            //CreateZoneAnnotations(doc, view, zone, elevation);
+        }
+
+        private void CreateZoneAnnotations(Document doc, ViewPlan view, ZoneSolution zone, double elevation)
+        {
+            try
+            {
+                var textNotesToDelete = new FilteredElementCollector(doc, view.Id)
+                    .OfClass(typeof(TextNote))
+                    .Where(e => e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString()?.Contains("Reinforcement") == true)
+                    .Select(e => e.Id)
+                    .ToList();
+
+                doc.Delete(textNotesToDelete);
+
+                // 1. Создаем текст с параметрами зоны
+                string annotationText = $"⌀{zone.Rebar.Diameter}мм @{zone.Spacing}мм\n" +
+                                      $"{zone.Boundary.Width * 1000:F0}x{zone.Boundary.Height * 1000:F0}мм";
+
+                // 2. Вычисляем позицию текста (центр зоны)
+                XYZ textPosition = new XYZ(
+                    zone.Boundary.X + zone.Boundary.Width / 2,
+                    zone.Boundary.Y + zone.Boundary.Height / 2,
+                    elevation
+                );
+
+                // 3. Создаем текстовую аннотацию
+                TextNoteOptions options = new TextNoteOptions
+                {
+                    HorizontalAlignment = HorizontalTextAlignment.Center,
+                    TypeId = GetDefaultTextNoteTypeId(doc)
+                };
+
+                TextNote textNote = TextNote.Create(doc, view.Id, textPosition, annotationText, options);
+
+                textNote.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+                    .Set("Reinforcement_Zone_Annotation");
+
+                Parameter textHeightParam = textNote.get_Parameter(BuiltInParameter.TEXT_SIZE);
+                textHeightParam?.Set(0.0115);
+
+                // 4. Настройка внешнего вида
+                OverrideGraphicSettings ogs = new OverrideGraphicSettings()
+                    .SetProjectionLineColor(new Color(0, 0, 0))
+                    .SetProjectionLineWeight(1);
+
+                view.SetElementOverrides(textNote.Id, ogs);
+
+                
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка создания аннотации: {ex.Message}");
+            }
+        }
+
+        private ElementId GetDefaultTextNoteTypeId(Document doc)
+        {
+            // Ищем стандартный тип текста "3.5mm Arial"
+            TextNoteType textType = new FilteredElementCollector(doc)
+                .OfClass(typeof(TextNoteType))
+                .Cast<TextNoteType>()
+                .FirstOrDefault(t => t.Name.Contains("3.5") || t.Name.Contains("Arial"));
+
+            return textType?.Id ?? doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType);
         }
 
         private void CreateZoneBoundary(Document doc, ViewPlan view, ZoneSolution zone, double elevation, ElementId floorId)
@@ -1911,6 +2139,14 @@ namespace CalcFittingsPlugin
             using (Transaction t = new Transaction(doc, "2D Визуализация армирования"))
             {
                 t.Start();
+
+                var textNotesToDelete = new FilteredElementCollector(doc, viewPlan.Id)
+                    .OfClass(typeof(TextNote))
+                    .Where(e => e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString()?.Contains("Reinforcement") == true)
+                    .Select(e => e.Id)
+                    .ToList();
+
+                doc.Delete(textNotesToDelete);
 
                 // Удаляем ВСЕ кривые на этом виде (используем CurveElement вместо DetailCurve)
                 var allCurves = new FilteredElementCollector(doc, viewPlan.Id)

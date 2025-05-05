@@ -479,6 +479,7 @@ namespace CalcFittingsPlugin
                 var optimizer = new ReinforcementOptimizer
                 {
                     Openings = ReinforcementOptimizer.GetOpeningsFromRevit(floors),
+                    NumOfSol = NumOfSol,
                     BasicReinforcement = new[] { as1x, as2x, as3y, as4y },
                     StandardLengths = Length.AsEnumerable()
                     .Select(r => Convert.ToDouble(r["Length"]))
@@ -540,6 +541,7 @@ namespace CalcFittingsPlugin
 
                 //Запускаем расчетный алгоритм
                 bestSolutions = optimizer.FindBestSolutions(slabsNodes, NumOfSol, floors);
+                optimizer = null;
 
                 progressWindow.UpdateProgress(100, "Завершено");
                 await Task.Delay(1000); // Даем время увидеть 100%
@@ -748,8 +750,8 @@ namespace CalcFittingsPlugin
             }
             finally
             {
-             
 
+        
                 progressWindow.SafeClose();
                 this.Focus();
                 this.Activate();
