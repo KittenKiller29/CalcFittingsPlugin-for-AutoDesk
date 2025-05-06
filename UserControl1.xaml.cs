@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Data;
 using System.IO;
+using System.Diagnostics;
 using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
@@ -570,7 +571,6 @@ namespace CalcFittingsPlugin
 
                     DataRow newRow = ZonesTable.Rows.Add();
                     newRow["Count"] = solution.Zones.Count;
-                    newRow["RebLength"] = length;
                     newRow["RebCost"] = solution.TotalCost;
                     newRow["Num"] = num;
                     newRow["RebLvl"] = FlrTextBox.Text;
@@ -821,6 +821,80 @@ namespace CalcFittingsPlugin
         {
             var textBox = sender as TextBox;
             textBox?.ScrollToEnd();
+        }
+
+        //Формируем сводный txt файл по каждой зоне
+        private async void Button_Click_txt(object sender, RoutedEventArgs e)
+        {
+
+            ProgressWindow progressWindow = new ProgressWindow
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Topmost = true,
+                Title = "Формирование отчета"
+            };
+
+            this.IsEnabled = false;
+            progressWindow.Show();
+            string path = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    Tools.PluginName,
+                    "ZonesData.txt"
+                );
+            string content = "";
+
+            try
+            {
+                int index = SolutionsView.SelectedIndex;
+
+                int num = 1;
+
+                foreach (ZoneSolution zone in bestSolutions[index].Zones)
+                {
+                    content += "Зона " + num.ToString() +
+                        " : " + "⌀" + zone.Rebar.Diameter.ToString() +
+                        " @" + zone.Spacing.ToString() + " размер зоны: " +
+                        Math.Round(zone.XBarLength, 3).ToString() + " x " + Math.Round(zone.YBarLength, 3).ToString() +
+                        " длина стержней: " + zone.StandardLengthX.ToString() + " x " +
+                        zone.StandardLengthY.ToString() + " количество стержней: " +
+                        zone.XBarsCount.ToString() + " x " + zone.YBarsCount.ToString() + 
+                        " цена: " + zone.TotalCost.ToString() + "\n"; 
+
+                    progressWindow.UpdateProgress((int)(num * 100 / bestSolutions[index].Zones.Count), "Запись в отчет");
+
+                    await Task.Delay(1);
+
+                    num++;
+                }
+
+                File.WriteAllText(path, content);
+
+                //Сразу открываем редактор с файлом
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Сформирован txt отчет"));
+
+            }
+            catch
+            {
+                MessageBox.Show("Не удалось сформировать текстовый документ с данными по зонам из-за непредвиденной ошибки.",
+                    "Текстовый отчет", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ConsoleLog.AppendText(Tools.CreateLogMessage("Не удалось сформировать txt отчет"));
+            }
+            finally
+            {
+                progressWindow.SafeClose();
+                this.Focus();
+                this.Activate();
+                this.IsEnabled = true;
+            }
+
+            
         }
     }
 }

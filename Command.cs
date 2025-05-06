@@ -873,6 +873,7 @@ namespace CalcFittingsPlugin
         private List<Floor> _floors;
         private SpatialGrid<Node> _spatialGrid;
         private List<Split> lineList;
+        private double FitnesCoef;
 
         public List<ReinforcementSolution> FindBestSolutions(List<List<Node>> slabsNodes, int solutionCount, List<Floor> floors)
         {
@@ -885,7 +886,7 @@ namespace CalcFittingsPlugin
             _spatialGrid = new SpatialGrid<Node>(allNodes, 2.0);
             poligonList = new List<List<XYZ>>();
 
-
+            FitnesCoef = 6500; 
 
             // Инициализация популяции с гарантированным покрытием
             var population = InitializePopulationWithCoverage(slabsNodes);
@@ -905,7 +906,7 @@ namespace CalcFittingsPlugin
 
             defaultZonesCount = population[0].Zones.Count;
 
-            Generations = (int)Math.Truncate(defaultZonesCount * 1.5);
+            Generations = (int)Math.Truncate(defaultZonesCount * 1.4);
             PopulationSize -= (int)Math.Truncate((double)(Generations / 100));
 
             //Заполянем список популяции
@@ -1097,7 +1098,7 @@ namespace CalcFittingsPlugin
                     }
 
                 }
-                    tmpPop[i].FitnesCost += tmpPop[i].Zones.Count * 6500;
+                    tmpPop[i].FitnesCost += tmpPop[i].Zones.Count * FitnesCoef;
                 
             });
 

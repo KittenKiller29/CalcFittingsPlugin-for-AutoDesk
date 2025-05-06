@@ -209,9 +209,18 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="№" Width="30" Binding="{Binding Num}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Число зон" Width="73" Binding="{Binding Count}" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="Длина арматуры, м." Width="123" Binding="{Binding RebLength}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Цена, руб." Width="83" Binding="{Binding RebCost}" IsReadOnly="True"/>
                             <DataGridTextColumn Header="Уровень" Width="99" Binding="{Binding RebLvl}" IsReadOnly="True"/>
+                            <DataGridTemplateColumn Header="Данные зон в txt" Width="123">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Сформировать" 
+                                            Click="Button_Click_txt"
+                                            Command="{Binding DataContext.MyCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="2D План" Width="89">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
