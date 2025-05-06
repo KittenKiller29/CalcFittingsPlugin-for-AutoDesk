@@ -860,12 +860,13 @@ namespace CalcFittingsPlugin
         public List<double> StandardLengths { get; set; }
         public double[] BasicReinforcement { get; set; }
         public List<Opening> Openings { get; set; } = new List<Opening>();
-        public int PopulationSize { get; set; } = 40;
-        public int Generations { get; set; } = 700;
+        public int PopulationSize { get; set; } = 35;
+        public int Generations { get; set; } = 400;
         public double MutationRate { get; set; } = 1;
-        public int EliteCount { get; set; } = 5;
+        public int EliteCount { get; set; } = 7;
         public double MinRebarPerDirection { get; set; } = 2;
         public int NumOfSol { get; set; } = 5;
+        private int defaultZonesCount;
 
         private List<List<XYZ>> poligonList;
         private static readonly Random Random = new Random();
@@ -901,6 +902,11 @@ namespace CalcFittingsPlugin
 
             //Корректируем первое решение, потом просто создаем много его копий 
             CorrectZones(population);
+
+            defaultZonesCount = population[0].Zones.Count;
+
+            Generations = (int)Math.Truncate(defaultZonesCount * 1.5);
+            PopulationSize -= (int)Math.Truncate((double)(Generations / 100));
 
             //Заполянем список популяции
             for (int i = 1; i < PopulationSize; i++)
@@ -1102,6 +1108,8 @@ namespace CalcFittingsPlugin
             Parallel.For(0, evolvedPopulation.Count, i =>
             {
                 evolvedPopulation[i].UpdateTotalCost();
+                if (evolvedPopulation[i].FitnesCost == defaultZonesCount)
+                    evolvedPopulation[i].FitnesCost += 1e7 * 100;
             });
 
             return evolvedPopulation;
@@ -1198,12 +1206,12 @@ namespace CalcFittingsPlugin
             if (Random.NextDouble() > MutationRate) return;
 
             // 1. Объединение двух случайных зон (90% вероятности)
-            if (Random.NextDouble() < 0.8 && solution.Zones.Count > 1)
+            if (Random.NextDouble() < 0.9 && solution.Zones.Count > 1)
             {
                 int idx1 = Random.Next(solution.Zones.Count);
                 int idx2 = Random.Next(solution.Zones.Count);
                 //Даем 15 попыток найти две зоны, у которых расстояние меньше 2 метров
-                for (int i = 0; i < 15; i++)
+                for (int i = 0; i < 25; i++)
                 {
                     idx1 = Random.Next(solution.Zones.Count);
                     idx2 = Random.Next(solution.Zones.Count);
