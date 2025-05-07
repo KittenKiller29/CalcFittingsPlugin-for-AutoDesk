@@ -886,7 +886,7 @@ namespace CalcFittingsPlugin
             _spatialGrid = new SpatialGrid<Node>(allNodes, 2.0);
             poligonList = new List<List<XYZ>>();
 
-            FitnesCoef = 6500; 
+            FitnesCoef = 7000; 
 
             // Инициализация популяции с гарантированным покрытием
             var population = InitializePopulationWithCoverage(slabsNodes);
@@ -1899,6 +1899,14 @@ namespace CalcFittingsPlugin
                         .Select(e => e.Id)
                         .ToList();
 
+                    var textNotesToDelete = new FilteredElementCollector(doc, viewPlan.Id)
+                        .OfClass(typeof(TextNote))
+                        .Where(e => e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString()?.Contains("Reinforcement") == true)
+                        .Select(e => e.Id)
+                        .ToList();
+
+                    doc.Delete(textNotesToDelete);
+
                     if (allCurves.Count > 0)
                     {
                         doc.Delete(allCurves);
@@ -1907,9 +1915,11 @@ namespace CalcFittingsPlugin
                     // Если нужно создать новые элементы
                     if (Solution != null && Solution.Zones != null)
                     {
+                        int num = 1;
                         foreach (var zone in Solution.Zones.Where(z => z?.Nodes?.Count > 0))
                         {
-                            VisualizeZone(doc, viewPlan, zone, Floors[zone.Nodes[0].SlabId]);
+                            VisualizeZone(doc, viewPlan, zone, Floors[zone.Nodes[0].SlabId], num);
+                            num++;
                         }
                     }
 
@@ -1956,31 +1966,23 @@ namespace CalcFittingsPlugin
             return viewPlan;
         }
 
-        private void VisualizeZone(Document doc, ViewPlan view, ZoneSolution zone, Floor floor)
+        private void VisualizeZone(Document doc, ViewPlan view, ZoneSolution zone, Floor floor, int num)
         {
             double elevation = (doc.GetElement(floor.LevelId) as Level)?.Elevation ?? 0;
             ElementId floorId = floor.Id;
 
             CreateZoneBoundary(doc, view, zone, elevation, floorId);
             CreateRebarVisualization(doc, view, zone, elevation, floorId);
-            //CreateZoneAnnotations(doc, view, zone, elevation);
+            CreateZoneAnnotations(doc, view, zone, elevation, num);
         }
 
-        private void CreateZoneAnnotations(Document doc, ViewPlan view, ZoneSolution zone, double elevation)
+        private void CreateZoneAnnotations(Document doc, ViewPlan view, ZoneSolution zone, double elevation, int num)
         {
             try
-            {
-                var textNotesToDelete = new FilteredElementCollector(doc, view.Id)
-                    .OfClass(typeof(TextNote))
-                    .Where(e => e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString()?.Contains("Reinforcement") == true)
-                    .Select(e => e.Id)
-                    .ToList();
-
-                doc.Delete(textNotesToDelete);
+            { 
 
                 // 1. Создаем текст с параметрами зоны
-                string annotationText = $"⌀{zone.Rebar.Diameter}мм @{zone.Spacing}мм\n" +
-                                      $"{zone.Boundary.Width * 1000:F0}x{zone.Boundary.Height * 1000:F0}мм";
+                string annotationText = num.ToString();
 
                 // 2. Вычисляем позицию текста (центр зоны)
                 XYZ textPosition = new XYZ(
