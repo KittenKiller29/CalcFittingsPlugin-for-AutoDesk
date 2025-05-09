@@ -1899,10 +1899,14 @@ namespace CalcFittingsPlugin
                         .Select(e => e.Id)
                         .ToList();
 
-                    var textNotesToDelete = new FilteredElementCollector(doc, viewPlan.Id)
+                    var allTextNotes = new FilteredElementCollector(doc, viewPlan.Id)
                         .OfClass(typeof(TextNote))
-                        .Where(e => e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString()?.Contains("Reinforcement") == true)
-                        .Select(e => e.Id)
+                        .Cast<TextNote>()
+                        .ToList();
+
+                    var textNotesToDelete = allTextNotes
+                        .Where(tn => tn.Text.StartsWith("r"))
+                        .Select(tn => tn.Id)
                         .ToList();
 
                     doc.Delete(textNotesToDelete);
@@ -1982,7 +1986,7 @@ namespace CalcFittingsPlugin
             { 
 
                 // 1. Создаем текст с параметрами зоны
-                string annotationText = num.ToString();
+                string annotationText = "r" + num.ToString();
 
                 // 2. Вычисляем позицию текста (центр зоны)
                 XYZ textPosition = new XYZ(
@@ -2000,8 +2004,7 @@ namespace CalcFittingsPlugin
 
                 TextNote textNote = TextNote.Create(doc, view.Id, textPosition, annotationText, options);
 
-                textNote.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
-                    .Set("Reinforcement_Zone_Annotation");
+                textNote.Name = "Reinforcement_" + num.ToString();
 
                 Parameter textHeightParam = textNote.get_Parameter(BuiltInParameter.TEXT_SIZE);
                 textHeightParam?.Set(0.0115);
@@ -2151,10 +2154,14 @@ namespace CalcFittingsPlugin
             {
                 t.Start();
 
-                var textNotesToDelete = new FilteredElementCollector(doc, viewPlan.Id)
-                    .OfClass(typeof(TextNote))
-                    .Where(e => e.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)?.AsString()?.Contains("Reinforcement") == true)
-                    .Select(e => e.Id)
+                var allTextNotes = new FilteredElementCollector(doc, viewPlan.Id)
+                        .OfClass(typeof(TextNote))
+                        .Cast<TextNote>()
+                        .ToList();
+
+                var textNotesToDelete = allTextNotes
+                    .Where(tn => tn.Text.StartsWith("r"))
+                    .Select(tn => tn.Id)
                     .ToList();
 
                 doc.Delete(textNotesToDelete);
