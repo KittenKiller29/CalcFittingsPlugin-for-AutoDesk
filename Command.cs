@@ -1097,6 +1097,10 @@ namespace CalcFittingsPlugin
 
                     }
 
+                    //Дополнительный штраф за зоны одиночки
+                    if (tmpPop[i].Zones[j].Nodes.Count <= 1)
+                        tmpPop[i].FitnesCost += 10000;
+
                 }
                     tmpPop[i].FitnesCost += tmpPop[i].Zones.Count * FitnesCoef;
                 
